@@ -27,14 +27,13 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
+const SupportedVariantSerializationVersion = 0
 const NullVariantDiscriminator uint8 = 255
 
 type ColVariant struct {
 	chType Type
 	name   string
 	rows   int
-
-	serializationVersion uint64
 
 	discriminators []uint8
 	offsets        []int
@@ -215,7 +214,7 @@ func (c *ColVariant) AppendRow(v any) error {
 }
 
 func (c *ColVariant) Encode(buffer *proto.Buffer) {
-	buffer.PutUInt64(c.serializationVersion)
+	buffer.PutUInt64(SupportedVariantSerializationVersion)
 	buffer.PutRaw(c.discriminators)
 
 	for _, col := range c.columns {
@@ -236,9 +235,11 @@ func (c *ColVariant) Reset() {
 func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
 	c.rows = rows
 	var err error
-	c.serializationVersion, err = reader.UInt64()
+	serializationVersion, err := reader.UInt64()
 	if err != nil {
 		return fmt.Errorf("failed to read variant serialization version: %w", err)
+	} else if serializationVersion != SupportedVariantSerializationVersion {
+		return fmt.Errorf("unsupported variant serialization version: %d", serializationVersion)
 	}
 
 	c.discriminators = make([]uint8, c.rows)
