@@ -132,6 +132,8 @@ func (t Type) Column(name string, tz *time.Location) (Interface, error) {
 		return (&Tuple{name: name}).parse(t, tz)
 	case strings.HasPrefix(string(t), "Variant("):
 		return (&ColVariant{name: name}).parse(t, tz)
+	case strings.HasPrefix(string(t), "Dynamic"):
+        return (&ColDynamic{name: name}).parse(t, tz)
 	case strings.HasPrefix(string(t), "Decimal("):
 		return (&Decimal{name: name}).parse(t)
 	case strings.HasPrefix(strType, "Nested("):
