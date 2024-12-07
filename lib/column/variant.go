@@ -37,7 +37,6 @@ type ColVariant struct {
 
 	discriminators []uint8
 	offsets        []int
-	lengthsByType  map[uint8]int
 
 	columns []Interface
 	index   map[string]int
@@ -254,7 +253,7 @@ func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
 
 	c.discriminators = make([]uint8, c.rows)
 	c.offsets = make([]int, c.rows)
-	c.lengthsByType = make(map[uint8]int, len(c.columns))
+	rowCountByType := make(map[uint8]int, len(c.columns))
 
 	for i := 0; i < c.rows; i++ {
 		disc, err := reader.ReadByte()
@@ -263,17 +262,17 @@ func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
 		}
 
 		c.discriminators[i] = disc
-		if c.lengthsByType[disc] == 0 {
-			c.lengthsByType[disc] = 1
+		if rowCountByType[disc] == 0 {
+			rowCountByType[disc] = 1
 		} else {
-			c.lengthsByType[disc]++
+			rowCountByType[disc]++
 		}
 
-		c.offsets[i] = c.lengthsByType[disc] - 1
+		c.offsets[i] = rowCountByType[disc] - 1
 	}
 
 	for i, col := range c.columns {
-		cRows := c.lengthsByType[uint8(i)]
+		cRows := rowCountByType[uint8(i)]
 		if err := col.Decode(reader, cRows); err != nil {
 			return fmt.Errorf("failed to decode variant column with %s type: %w", col.Type(), err)
 		}
