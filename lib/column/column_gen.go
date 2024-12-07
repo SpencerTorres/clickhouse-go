@@ -150,6 +150,8 @@ func (t Type) Column(name string, tz *time.Location) (Interface, error) {
 		return (&ColVariant{name: name}).parse(t, tz)
 	case strings.HasPrefix(string(t), "Dynamic"):
 		return (&ColDynamic{name: name}).parse(t, tz)
+	case strings.HasPrefix(string(t), "JSON"):
+		return (&ColJSON{name: name}).parse(t, tz)
 	case strings.HasPrefix(string(t), "Decimal("):
 		return (&Decimal{name: name}).parse(t)
 	case strings.HasPrefix(strType, "Nested("):
