@@ -27,7 +27,7 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
-const SupportedVariantSerializationVersion = 0
+const SupportedDiscriminatorVersion = 0
 const NullVariantDiscriminator uint8 = 255
 
 type ColVariant struct {
@@ -213,13 +213,21 @@ func (c *ColVariant) AppendRow(v any) error {
 	return fmt.Errorf("value %v cannot be stored in variant column %s %s: %w", v, c.name, c.chType, err)
 }
 
-func (c *ColVariant) Encode(buffer *proto.Buffer) {
-	buffer.PutUInt64(SupportedVariantSerializationVersion)
+func (c *ColVariant) encodeHeader(buffer *proto.Buffer) {
+	buffer.PutUInt64(SupportedDiscriminatorVersion)
+}
+
+func (c *ColVariant) encodeData(buffer *proto.Buffer) {
 	buffer.PutRaw(c.discriminators)
 
 	for _, col := range c.columns {
 		col.Encode(buffer)
 	}
+}
+
+func (c *ColVariant) Encode(buffer *proto.Buffer) {
+	c.encodeHeader(buffer)
+	c.encodeData(buffer)
 }
 
 func (c *ColVariant) ScanType() reflect.Type {
@@ -232,15 +240,19 @@ func (c *ColVariant) Reset() {
 	panic("implement me")
 }
 
-func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
-	c.rows = rows
-	var err error
-	serializationVersion, err := reader.UInt64()
+func (c *ColVariant) decodeHeader(reader *proto.Reader) error {
+	discriminatorVersion, err := reader.UInt64()
 	if err != nil {
-		return fmt.Errorf("failed to read variant serialization version: %w", err)
-	} else if serializationVersion != SupportedVariantSerializationVersion {
-		return fmt.Errorf("unsupported variant serialization version: %d", serializationVersion)
+		return fmt.Errorf("failed to read discriminator version: %w", err)
+	} else if discriminatorVersion != SupportedDiscriminatorVersion {
+		return fmt.Errorf("unsupported discriminator version: %d", discriminatorVersion)
 	}
+
+	return nil
+}
+
+func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
+	c.rows = rows
 
 	c.discriminators = make([]uint8, c.rows)
 	c.offsets = make([]int, c.rows)
@@ -249,7 +261,7 @@ func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
 	for i := 0; i < c.rows; i++ {
 		disc, err := reader.ReadByte()
 		if err != nil {
-			return fmt.Errorf("failed to read variant discriminator at index %d: %w", i, err)
+			return fmt.Errorf("failed to read discriminator at index %d: %w", i, err)
 		}
 
 		c.discriminators[i] = disc
@@ -267,6 +279,20 @@ func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
 		if err := col.Decode(reader, cRows); err != nil {
 			return fmt.Errorf("failed to decode variant column with %s type: %w", col.Type(), err)
 		}
+	}
+
+	return nil
+}
+
+func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
+	err := c.decodeHeader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to decode variant header: %w", err)
+	}
+
+	err = c.decodeData(reader, rows)
+	if err != nil {
+		return fmt.Errorf("failed to decode variant data: %w", err)
 	}
 
 	return nil

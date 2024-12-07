@@ -61,7 +61,7 @@ func TestVariant(t *testing.T) {
 	require.NoError(t, batch.Append([]map[string]string{{"key1": "value1", "key2": "value2"}, {"key3": "value3"}}))
 	require.NoError(t, batch.Send())
 
-	rows, err := conn.Query(ctx, "SELECT c from test_variant")
+	rows, err := conn.Query(ctx, "SELECT c FROM test_variant")
 	require.NoError(t, err)
 
 	var row chcol.Variant

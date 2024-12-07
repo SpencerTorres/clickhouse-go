@@ -30,18 +30,12 @@ const SupportedDynamicSerializationVersion = 1
 type ColDynamic struct {
 	chType Type
 	name   string
-	rows   int
 
 	maxTypes         uint8
 	currentTypes     uint8
 	currentTypeNames []string
 
-	discriminators []uint8
-	offsets        []int
-	lengthsByType  map[uint8]int
-
-	columns []Interface
-	index   map[string]int
+	variant ColVariant
 }
 
 func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
@@ -66,24 +60,24 @@ func (c *ColDynamic) Type() Type {
 }
 
 func (c *ColDynamic) Rows() int {
-	return c.rows
+	return c.variant.rows
 }
 
 func (c *ColDynamic) Row(i int, ptr bool) any {
-	typeIndex := c.discriminators[i]
+	typeIndex := c.variant.discriminators[i]
 	if typeIndex == NullVariantDiscriminator {
 		return nil
 	}
 
-	return c.columns[typeIndex].Row(c.offsets[i], ptr)
+	return c.variant.columns[typeIndex].Row(c.variant.offsets[i], ptr)
 }
 
 func (c *ColDynamic) ScanRow(dest any, row int) error {
-	typeIndex := c.discriminators[row]
-	offsetIndex := c.offsets[row]
+	typeIndex := c.variant.discriminators[row]
+	offsetIndex := c.variant.offsets[row]
 	var value any
 	if typeIndex != NullVariantDiscriminator {
-		value = c.columns[typeIndex].Row(offsetIndex, false)
+		value = c.variant.columns[typeIndex].Row(offsetIndex, false)
 	}
 
 	switch v := dest.(type) {
@@ -98,7 +92,7 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 			return nil
 		}
 
-		if err := c.columns[typeIndex].ScanRow(dest, offsetIndex); err != nil {
+		if err := c.variant.columns[typeIndex].ScanRow(dest, offsetIndex); err != nil {
 			return err
 		}
 	}
@@ -113,8 +107,8 @@ func (c *ColDynamic) Append(v any) (nulls []uint8, err error) {
 
 func (c *ColDynamic) AppendRow(v any) error {
 	if v == nil {
-		c.rows++
-		c.discriminators = append(c.discriminators, NullVariantDiscriminator)
+		c.variant.rows++
+		c.variant.discriminators = append(c.variant.discriminators, NullVariantDiscriminator)
 		return nil
 	}
 
@@ -131,7 +125,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 		var col Interface
 		var ok bool
 		// TODO: this could be pre-calculated as a map[string]int (name->index)
-		for i, col = range c.columns {
+		for i, col = range c.variant.columns {
 			if col.Type() == forcedType {
 				ok = true
 				break
@@ -144,7 +138,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 				return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: unable to append type: %w", v, c.name, c.chType, forcedType, err)
 			}
 
-			c.columns = append(c.columns, newCol)
+			c.variant.columns = append(c.variant.columns, newCol)
 			c.currentTypes++
 			col = newCol
 			i = int(c.currentTypes - 1)
@@ -154,17 +148,17 @@ func (c *ColDynamic) AppendRow(v any) error {
 			return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: %w", v, c.name, c.chType, forcedType, err)
 		}
 
-		c.rows++
-		c.discriminators = append(c.discriminators, uint8(i))
+		c.variant.rows++
+		c.variant.discriminators = append(c.variant.discriminators, uint8(i))
 		return nil
 	}
 
 	// If preferred type wasn't provided, try each column
 	var err error
-	for i, col := range c.columns {
+	for i, col := range c.variant.columns {
 		if err = col.AppendRow(v); err == nil {
-			c.rows++
-			c.discriminators = append(c.discriminators, uint8(i))
+			c.variant.rows++
+			c.variant.discriminators = append(c.variant.discriminators, uint8(i))
 			return nil
 		}
 	}
@@ -172,21 +166,25 @@ func (c *ColDynamic) AppendRow(v any) error {
 	return fmt.Errorf("value %v cannot be stored in dynamic column %s %s: %w", v, c.name, c.chType, err)
 }
 
-func (c *ColDynamic) Encode(buffer *proto.Buffer) {
+func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
 	buffer.PutUInt64(SupportedDynamicSerializationVersion)
 	buffer.PutUVarInt(uint64(c.maxTypes))
 	buffer.PutUVarInt(uint64(c.currentTypes))
 
-	for _, col := range c.columns {
+	for _, col := range c.variant.columns {
 		buffer.PutString(string(col.Type()))
 	}
 
-	buffer.PutUInt64(SupportedVariantSerializationVersion)
-	buffer.PutRaw(c.discriminators)
+	c.variant.encodeHeader(buffer)
+}
 
-	for _, col := range c.columns {
-		col.Encode(buffer)
-	}
+func (c *ColDynamic) encodeData(buffer *proto.Buffer) {
+	c.variant.Encode(buffer)
+}
+
+func (c *ColDynamic) Encode(buffer *proto.Buffer) {
+	c.encodeHeader(buffer)
+	c.encodeData(buffer)
 }
 
 func (c *ColDynamic) ScanType() reflect.Type {
@@ -199,9 +197,7 @@ func (c *ColDynamic) Reset() {
 	panic("implement me")
 }
 
-func (c *ColDynamic) Decode(reader *proto.Reader, rows int) error {
-	c.rows = rows
-	var err error
+func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 	dynamicSerializationVersion, err := reader.UInt64()
 	if err != nil {
 		return fmt.Errorf("failed to read dynamic serialization version: %w", err)
@@ -239,41 +235,35 @@ func (c *ColDynamic) Decode(reader *proto.Reader, rows int) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse dynamic column with type %s: %w", i, err)
 		}
-		c.columns = append(c.columns, col)
+		c.variant.columns = append(c.variant.columns, col)
 	}
 
-	variantSerializationVersion, err := reader.UInt64()
+	err = c.variant.decodeHeader(reader)
 	if err != nil {
-		return fmt.Errorf("failed to read dynamic variant serialization version: %w", err)
-	} else if variantSerializationVersion != SupportedVariantSerializationVersion {
-		return fmt.Errorf("unsupported dynamic variant serialization version: %d", variantSerializationVersion)
+		return fmt.Errorf("failed to decode variant header: %w", err)
 	}
 
-	c.discriminators = make([]uint8, c.rows)
-	c.offsets = make([]int, c.rows)
-	c.lengthsByType = make(map[uint8]int, len(c.columns))
+	return nil
+}
 
-	for i := 0; i < c.rows; i++ {
-		disc, err := reader.ReadByte()
-		if err != nil {
-			return fmt.Errorf("failed to read dynamic discriminator at index %d: %w", i, err)
-		}
-
-		c.discriminators[i] = disc
-		if c.lengthsByType[disc] == 0 {
-			c.lengthsByType[disc] = 1
-		} else {
-			c.lengthsByType[disc]++
-		}
-
-		c.offsets[i] = c.lengthsByType[disc] - 1
+func (c *ColDynamic) decodeData(reader *proto.Reader, rows int) error {
+	err := c.variant.decodeData(reader, rows)
+	if err != nil {
+		return fmt.Errorf("failed to decode variant data: %w", err)
 	}
 
-	for i, col := range c.columns {
-		cRows := c.lengthsByType[uint8(i)]
-		if err := col.Decode(reader, cRows); err != nil {
-			return fmt.Errorf("failed to decode dynamic column with %s type: %w", col.Type(), err)
-		}
+	return nil
+}
+
+func (c *ColDynamic) Decode(reader *proto.Reader, rows int) error {
+	err := c.decodeHeader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to decode dynamic header: %w", err)
+	}
+
+	err = c.decodeData(reader, rows)
+	if err != nil {
+		return fmt.Errorf("failed to decode dynamic data: %w", err)
 	}
 
 	return nil

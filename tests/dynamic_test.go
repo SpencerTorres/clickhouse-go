@@ -53,7 +53,7 @@ func TestDynamic(t *testing.T) {
 	require.NoError(t, batch.Append(chcol.NewDynamicWithType("test", "String")))
 	require.NoError(t, batch.Send())
 
-	rows, err := conn.Query(ctx, "SELECT c from test_dynamic")
+	rows, err := conn.Query(ctx, "SELECT c FROM test_dynamic")
 	require.NoError(t, err)
 
 	var row chcol.Dynamic
