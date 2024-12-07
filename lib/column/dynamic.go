@@ -20,6 +20,7 @@ package column
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
@@ -32,9 +33,9 @@ type ColDynamic struct {
 	chType Type
 	name   string
 
-	maxTypes         uint8
-	currentTypes     uint8
-	currentTypeNames []string
+	maxTypes   uint8
+	totalTypes uint8
+	typeNames  []string
 
 	variant ColVariant
 }
@@ -48,6 +49,10 @@ func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	//return nil, &UnsupportedColumnTypeError{
 	//	t: t,
 	//}
+
+	c.typeNames = append(c.typeNames, "SharedVariant")
+	sv, _ := Type("String").Column("", nil)
+	c.variant.columns = append(c.variant.columns, sv)
 
 	return c, nil
 }
@@ -107,14 +112,12 @@ func (c *ColDynamic) Append(v any) (nulls []uint8, err error) {
 }
 
 func (c *ColDynamic) AppendRow(v any) error {
-	if v == nil {
+	var forcedType Type
+	switch v.(type) {
+	case nil:
 		c.variant.rows++
 		c.variant.discriminators = append(c.variant.discriminators, NullVariantDiscriminator)
 		return nil
-	}
-
-	var forcedType Type
-	switch v.(type) {
 	case chcol.DynamicWithType:
 		forcedType = Type(v.(chcol.DynamicWithType).Type())
 	case *chcol.DynamicWithType:
@@ -123,11 +126,13 @@ func (c *ColDynamic) AppendRow(v any) error {
 
 	if forcedType != "" {
 		var i int
+		var typeName string
 		var col Interface
 		var ok bool
 		// TODO: this could be pre-calculated as a map[string]int (name->index)
-		for i, col = range c.variant.columns {
-			if col.Type() == forcedType {
+		for i, typeName = range c.typeNames {
+			if typeName == string(forcedType) {
+				col = c.variant.columns[i]
 				ok = true
 				break
 			}
@@ -140,9 +145,11 @@ func (c *ColDynamic) AppendRow(v any) error {
 			}
 
 			c.variant.columns = append(c.variant.columns, newCol)
-			c.currentTypes++
+			c.typeNames = append(c.typeNames, string(forcedType))
+			c.totalTypes++
 			col = newCol
-			i = int(c.currentTypes - 1)
+			// totalTypes is used since SharedVariant is implicitly present and offsets discriminator index by 1
+			i = int(c.totalTypes)
 		}
 
 		if err := col.AppendRow(v); err != nil {
@@ -167,13 +174,43 @@ func (c *ColDynamic) AppendRow(v any) error {
 	return fmt.Errorf("value %v cannot be stored in dynamic column %s %s: %w", v, c.name, c.chType, err)
 }
 
+func (c *ColDynamic) sortColumnsForEncoding() {
+	sortedTypeNames := make([]string, 0, len(c.typeNames))
+	sortedTypeNames = append(sortedTypeNames, c.typeNames...)
+	slices.Sort(sortedTypeNames)
+
+	sortedIndices := make(map[string]int, len(c.typeNames))
+	for i, typeName := range sortedTypeNames {
+		sortedIndices[typeName] = i
+	}
+
+	nextDiscriminators := make([]uint8, len(c.variant.columns))
+	nextColumns := make([]Interface, len(c.variant.columns))
+	for i, typeName := range c.typeNames {
+		correctIndex := sortedIndices[typeName]
+		nextDiscriminators[i] = uint8(correctIndex)
+		nextColumns[correctIndex] = c.variant.columns[i]
+	}
+
+	for i := range c.variant.discriminators {
+		c.variant.discriminators[i] = nextDiscriminators[c.variant.discriminators[i]]
+	}
+
+	c.variant.columns = nextColumns
+	c.typeNames = sortedTypeNames
+}
+
 func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
 	buffer.PutUInt64(SupportedDynamicSerializationVersion)
 	buffer.PutUVarInt(uint64(c.maxTypes))
-	buffer.PutUVarInt(uint64(c.currentTypes))
+	buffer.PutUVarInt(uint64(c.totalTypes))
 
-	for _, col := range c.variant.columns {
-		buffer.PutString(string(col.Type()))
+	for _, typeName := range c.typeNames {
+		if typeName == "SharedVariant" {
+			continue
+		}
+
+		buffer.PutString(typeName)
 	}
 
 	c.variant.encodeHeader(buffer)
@@ -184,6 +221,8 @@ func (c *ColDynamic) encodeData(buffer *proto.Buffer) {
 }
 
 func (c *ColDynamic) Encode(buffer *proto.Buffer) {
+	c.sortColumnsForEncoding()
+
 	c.encodeHeader(buffer)
 	c.encodeData(buffer)
 }
@@ -212,13 +251,15 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 	}
 	c.maxTypes = uint8(maxTypes)
 
-	currentTypes, err := reader.UVarInt()
+	totalTypes, err := reader.UVarInt()
 	if err != nil {
-		return fmt.Errorf("failed to read current types for dynamic column: %w", err)
+		return fmt.Errorf("failed to read total types for dynamic column: %w", err)
 	}
-	c.currentTypes = uint8(currentTypes)
+	c.totalTypes = uint8(totalTypes)
 
-	for i := uint8(0); i < c.currentTypes; i++ {
+	c.typeNames = make([]string, 0, totalTypes+1)
+	c.variant.columns = make([]Interface, 0, totalTypes+1)
+	for i := uint8(0); i < c.totalTypes; i++ {
 		strLen, err := reader.StrLen()
 		if err != nil {
 			return fmt.Errorf("failed to read current type name length at index %d for dynamic column: %w", i, err)
@@ -229,12 +270,20 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 			return fmt.Errorf("failed to read current type name bytes at index %d for dynamic column: %w", i, err)
 		}
 
-		colType := string(strBytes)
-		c.currentTypeNames = append(c.currentTypeNames, colType)
+		c.typeNames = append(c.typeNames, string(strBytes))
+	}
 
-		col, err := Type(strBytes).Column("", nil)
+	c.typeNames = append(c.typeNames, "SharedVariant")
+	slices.Sort(c.typeNames)
+
+	for _, typeName := range c.typeNames {
+		if typeName == "SharedVariant" {
+			typeName = "String"
+		}
+
+		col, err := Type(typeName).Column("", nil)
 		if err != nil {
-			return fmt.Errorf("failed to parse dynamic column with type %s: %w", strBytes, err)
+			return fmt.Errorf("failed to parse dynamic column with type %s: %w", typeName, err)
 		}
 		c.variant.columns = append(c.variant.columns, col)
 	}

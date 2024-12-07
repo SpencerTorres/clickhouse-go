@@ -27,7 +27,7 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
-const SupportedDiscriminatorVersion = 0
+const SupportedVariantSerializationVersion = 0
 const NullVariantDiscriminator uint8 = 255
 
 type ColVariant struct {
@@ -161,14 +161,12 @@ func (c *ColVariant) Append(v any) (nulls []uint8, err error) {
 }
 
 func (c *ColVariant) AppendRow(v any) error {
-	if v == nil {
+	var forcedType Type
+	switch v.(type) {
+	case nil:
 		c.rows++
 		c.discriminators = append(c.discriminators, NullVariantDiscriminator)
 		return nil
-	}
-
-	var forcedType Type
-	switch v.(type) {
 	case chcol.VariantWithType:
 		forcedType = Type(v.(chcol.VariantWithType).Type())
 	case *chcol.VariantWithType:
@@ -214,7 +212,7 @@ func (c *ColVariant) AppendRow(v any) error {
 }
 
 func (c *ColVariant) encodeHeader(buffer *proto.Buffer) {
-	buffer.PutUInt64(SupportedDiscriminatorVersion)
+	buffer.PutUInt64(SupportedVariantSerializationVersion)
 }
 
 func (c *ColVariant) encodeData(buffer *proto.Buffer) {
@@ -241,11 +239,11 @@ func (c *ColVariant) Reset() {
 }
 
 func (c *ColVariant) decodeHeader(reader *proto.Reader) error {
-	discriminatorVersion, err := reader.UInt64()
+	variantSerializationVersion, err := reader.UInt64()
 	if err != nil {
-		return fmt.Errorf("failed to read discriminator version: %w", err)
-	} else if discriminatorVersion != SupportedDiscriminatorVersion {
-		return fmt.Errorf("unsupported discriminator version: %d", discriminatorVersion)
+		return fmt.Errorf("failed to read variant discriminator version: %w", err)
+	} else if variantSerializationVersion != SupportedVariantSerializationVersion {
+		return fmt.Errorf("unsupported variant discriminator version: %d", variantSerializationVersion)
 	}
 
 	return nil
