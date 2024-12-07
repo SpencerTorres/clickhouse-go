@@ -19,10 +19,11 @@ package column
 
 import (
 	"fmt"
-	"github.com/ClickHouse/ch-go/proto"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"reflect"
 	"time"
+
+	"github.com/ClickHouse/ch-go/proto"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 )
 
 const SupportedDynamicSerializationVersion = 1
@@ -179,7 +180,7 @@ func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
 }
 
 func (c *ColDynamic) encodeData(buffer *proto.Buffer) {
-	c.variant.Encode(buffer)
+	c.variant.encodeData(buffer)
 }
 
 func (c *ColDynamic) Encode(buffer *proto.Buffer) {
@@ -233,7 +234,7 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 
 		col, err := Type(strBytes).Column("", nil)
 		if err != nil {
-			return fmt.Errorf("failed to parse dynamic column with type %s: %w", i, err)
+			return fmt.Errorf("failed to parse dynamic column with type %s: %w", strBytes, err)
 		}
 		c.variant.columns = append(c.variant.columns, col)
 	}
