@@ -101,11 +101,6 @@ func (v Variant) MustBool() bool {
 
 // Scan implements the sql.Scanner interface
 func (v *Variant) Scan(value interface{}) error {
-	if value == nil {
-		v.value = nil
-		return nil
-	}
-
 	v.value = value
 	return nil
 }

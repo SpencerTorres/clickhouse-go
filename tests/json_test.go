@@ -46,14 +46,17 @@ func TestJSON(t *testing.T) {
 		require.NoError(t, conn.Exec(ctx, "DROP TABLE IF EXISTS test_json"))
 	}()
 
-	err = conn.Exec(ctx, "INSERT INTO test_json (c) VALUES ('{\"a\": { \"a\": true, \"b\": 42, \"c\": \"test!\" }, \"x\": 64 }')")
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_json (c)")
 	require.NoError(t, err)
-	//batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_dynamic (c)")
-	//require.NoError(t, err)
-	//require.NoError(t, batch.Append(chcol.NewDynamic(true).WithType("Bool")))
-	//require.NoError(t, batch.Append(chcol.NewDynamic(42).WithType("Int64")))
-	//require.NoError(t, batch.Append(chcol.NewDynamicWithType("test", "String")))
-	//require.NoError(t, batch.Send())
+
+	jsonRow := chcol.NewJSON()
+	jsonRow.SetValueAtPath("a.a", chcol.NewDynamic(true).WithType("Bool"))
+	jsonRow.SetValueAtPath("a.b", chcol.NewDynamic(42).WithType("Int64"))
+	jsonRow.SetValueAtPath("a.c", chcol.NewDynamic("test!").WithType("String"))
+	jsonRow.SetValueAtPath("x", chcol.NewDynamic(64).WithType("Int64"))
+	require.NoError(t, batch.Append(jsonRow))
+
+	require.NoError(t, batch.Send())
 
 	rows, err := conn.Query(ctx, "SELECT c FROM test_json")
 	require.NoError(t, err)

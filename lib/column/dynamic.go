@@ -201,6 +201,8 @@ func (c *ColDynamic) sortColumnsForEncoding() {
 }
 
 func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
+	c.sortColumnsForEncoding()
+
 	buffer.PutUInt64(SupportedDynamicSerializationVersion)
 	buffer.PutUVarInt(uint64(c.maxTypes))
 	buffer.PutUVarInt(uint64(c.totalTypes))
@@ -221,8 +223,6 @@ func (c *ColDynamic) encodeData(buffer *proto.Buffer) {
 }
 
 func (c *ColDynamic) Encode(buffer *proto.Buffer) {
-	c.sortColumnsForEncoding()
-
 	c.encodeHeader(buffer)
 	c.encodeData(buffer)
 }

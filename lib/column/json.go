@@ -19,6 +19,7 @@ package column
 
 import (
 	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"reflect"
 	"time"
 
@@ -26,26 +27,46 @@ import (
 )
 
 const SupportedJSONSerializationVersion = 0
+const DefaultMaxDynamicPaths = 1024
 
 type ColJSON struct {
 	chType Type
 	name   string
 	rows   int
 
-	typedPaths   []string
-	typedColumns []Interface
+	typedPaths      []string
+	typedPathsIndex map[string]int
+	typedColumns    []Interface
 
-	skipPaths []string
+	skipPaths      []string
+	skipPathsIndex map[string]int // TODO: ignore appended paths based on skip paths? does server ignore automatically?
 
-	dynamicPaths   []string
-	dynamicColumns []ColDynamic
+	dynamicPaths      []string
+	dynamicPathsIndex map[string]int
+	dynamicColumns    []ColDynamic
 
 	maxDynamicPaths   int
 	totalDynamicPaths int
 }
 
+func (c *ColJSON) hasTypedPath(path string) bool {
+	_, ok := c.typedPathsIndex[path]
+	return ok
+}
+
+func (c *ColJSON) hasDynamicPath(path string) bool {
+	_, ok := c.dynamicPathsIndex[path]
+	return ok
+}
+
 func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
+
+	c.typedPathsIndex = make(map[string]int)
+	c.skipPathsIndex = make(map[string]int)
+	c.dynamicPathsIndex = make(map[string]int)
+
+	c.maxDynamicPaths = DefaultMaxDynamicPaths
 
 	// TODO: parse typed paths, skip paths, etc.
 	//c.maxTypes = 0
@@ -66,6 +87,13 @@ func (c *ColJSON) Type() Type {
 }
 
 func (c *ColJSON) Rows() int {
+	//if len(c.typedColumns) > 0 {
+	//	return c.typedColumns[0].Rows()
+	//} else if len(c.dynamicColumns) > 0 {
+	//	return c.dynamicColumns[0].Rows()
+	//}
+	//
+	//return 0
 	return c.rows
 }
 
@@ -107,66 +135,69 @@ func (c *ColJSON) Append(v any) (nulls []uint8, err error) {
 }
 
 func (c *ColJSON) AppendRow(v any) error {
-	//var forcedType Type
-	//switch v.(type) {
-	//case nil:
-	//	c.variant.rows++
-	//	c.variant.discriminators = append(c.variant.discriminators, NullVariantDiscriminator)
-	//	return nil
-	//case chcol.DynamicWithType:
-	//	forcedType = Type(v.(chcol.DynamicWithType).Type())
-	//case *chcol.DynamicWithType:
-	//	forcedType = Type(v.(*chcol.DynamicWithType).Type())
-	//}
-	//
-	//if forcedType != "" {
-	//	var i int
-	//	var typeName string
-	//	var col Interface
-	//	var ok bool
-	//	// TODO: this could be pre-calculated as a map[string]int (name->index)
-	//	for i, typeName = range c.typeNames {
-	//		if typeName == string(forcedType) {
-	//			col = c.variant.columns[i]
-	//			ok = true
-	//			break
-	//		}
-	//	}
-	//
-	//	if !ok {
-	//		newCol, err := forcedType.Column("", nil)
-	//		if err != nil {
-	//			return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: unable to append type: %w", v, c.name, c.chType, forcedType, err)
-	//		}
-	//
-	//		c.variant.columns = append(c.variant.columns, newCol)
-	//		c.typeNames = append(c.typeNames, string(forcedType))
-	//		c.totalTypes++
-	//		col = newCol
-	//		// totalTypes is used since SharedVariant is implicitly present and offsets discriminator index by 1
-	//		i = int(c.totalTypes)
-	//	}
-	//
-	//	if err := col.AppendRow(v); err != nil {
-	//		return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: %w", v, c.name, c.chType, forcedType, err)
-	//	}
-	//
-	//	c.variant.rows++
-	//	c.variant.discriminators = append(c.variant.discriminators, uint8(i))
-	//	return nil
-	//}
-	//
-	//// If preferred type wasn't provided, try each column
-	//var err error
-	//for i, col := range c.variant.columns {
-	//	if err = col.AppendRow(v); err == nil {
-	//		c.variant.rows++
-	//		c.variant.discriminators = append(c.variant.discriminators, uint8(i))
-	//		return nil
-	//	}
-	//}
+	var obj *chcol.JSON
+	switch t := v.(type) {
+	case chcol.JSON:
+		vv := v.(chcol.JSON)
+		obj = &vv
+	case *chcol.JSON:
+		obj = (v.(*chcol.JSON))
+	default:
+		// TODO: if it's a struct we can do reflection magic to convert it to a "normalized" chcol.JSON
+		return fmt.Errorf("cannot append type %v to json column, use chcol.JSON type", t)
+	}
 
-	//return fmt.Errorf("value %v cannot be stored in json column %s %s: %w", v, c.name, c.chType, err)
+	objPaths := obj.Paths()
+	objValues := obj.Values()
+	pathsToValues := make(map[string]any, len(obj.Paths()))
+	for i, path := range objPaths {
+		pathsToValues[path] = objValues[i]
+	}
+
+	// Match typed paths first
+	for i, typedPath := range c.typedPaths {
+		value, ok := pathsToValues[typedPath]
+		if !ok {
+			continue
+		}
+
+		col := c.typedColumns[i]
+		err := col.AppendRow(value)
+		if err != nil {
+			return fmt.Errorf("failed to append type %s to json column at typed path %s: %w", col.Type(), typedPath, err)
+		}
+	}
+
+	// Match or add dynamic paths
+	for i, objPath := range objPaths {
+		if c.hasTypedPath(objPath) {
+			continue
+		}
+
+		value := objValues[i]
+		if dynamicPathIndex, ok := c.dynamicPathsIndex[objPath]; ok {
+			err := c.dynamicColumns[dynamicPathIndex].AppendRow(value)
+			if err != nil {
+				return fmt.Errorf("failed to append to json column at dynamic path %s: %w", objPath, err)
+			}
+		} else {
+			// Add new dynamic path + column
+			parsedColDynamic, _ := Type("Dynamic").Column("", nil)
+			colDynamic := parsedColDynamic.(*ColDynamic)
+
+			err := colDynamic.AppendRow(value)
+			if err != nil {
+				return fmt.Errorf("failed to append to json column at dynamic path %s: %w", objPath, err)
+			}
+
+			c.dynamicPaths = append(c.dynamicPaths, objPath)
+			c.dynamicPathsIndex[objPath] = len(c.dynamicPaths) - 1
+			c.dynamicColumns = append(c.dynamicColumns, *colDynamic)
+			c.totalDynamicPaths++
+		}
+	}
+
+	c.rows++
 	return nil
 }
 
@@ -181,6 +212,7 @@ func (c *ColJSON) encodeHeader(buffer *proto.Buffer) {
 
 	// TODO: write typed path headers (low cardinality only?)
 
+	// TODO: alphabetically sort dynamic paths for encoding!!!
 	for _, col := range c.dynamicColumns {
 		col.encodeHeader(buffer)
 	}
@@ -195,7 +227,10 @@ func (c *ColJSON) encodeData(buffer *proto.Buffer) {
 		col.encodeData(buffer)
 	}
 
-	// TODO: shared variant goes here?
+	// TODO: shared variant goes here? per row?
+	for i := 0; i < c.rows; i++ {
+		buffer.PutUInt64(0)
+	}
 }
 
 func (c *ColJSON) Encode(buffer *proto.Buffer) {
@@ -254,7 +289,7 @@ func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
 
 	c.dynamicColumns = make([]ColDynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {
-		parsedColDynamic, _ := (&ColDynamic{}).parse("Dynamic", nil)
+		parsedColDynamic, _ := Type("Dynamic").Column("", nil)
 		colDynamic := parsedColDynamic.(*ColDynamic)
 
 		err := colDynamic.decodeHeader(reader)
@@ -291,6 +326,8 @@ func (c *ColJSON) decodeData(reader *proto.Reader, rows int) error {
 }
 
 func (c *ColJSON) Decode(reader *proto.Reader, rows int) error {
+	c.rows = rows
+
 	err := c.decodeHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to decode json header: %w", err)
