@@ -61,21 +61,30 @@ func TestJSON(t *testing.T) {
 	rows, err := conn.Query(ctx, "SELECT c FROM test_json")
 	require.NoError(t, err)
 
-	var row chcol.Dynamic
+	var row chcol.JSON
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, true, row.MustBool())
 
-	require.True(t, rows.Next())
-	err = rows.Scan(&row)
-	require.NoError(t, err)
-	require.Equal(t, int64(42), row.MustInt64())
+	aaDynamic, ok := row.ValueAtPath("a.a")
+	require.True(t, ok)
+	aa := aaDynamic.(chcol.Dynamic)
+	require.Equal(t, true, aa.MustBool())
 
-	require.True(t, rows.Next())
-	err = rows.Scan(&row)
-	require.NoError(t, err)
-	require.Equal(t, "test", row.MustString())
+	abDynamic, ok := row.ValueAtPath("a.b")
+	require.True(t, ok)
+	ab := abDynamic.(chcol.Dynamic)
+	require.Equal(t, int64(42), ab.MustInt64())
+
+	acDynamic, ok := row.ValueAtPath("a.c")
+	require.True(t, ok)
+	ac := acDynamic.(chcol.Dynamic)
+	require.Equal(t, "test!", ac.MustString())
+
+	xDynamic, ok := row.ValueAtPath("x")
+	require.True(t, ok)
+	x := xDynamic.(chcol.Dynamic)
+	require.Equal(t, int64(64), x.MustInt64())
 
 }

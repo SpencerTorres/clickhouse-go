@@ -43,7 +43,7 @@ type ColJSON struct {
 
 	dynamicPaths      []string
 	dynamicPathsIndex map[string]int
-	dynamicColumns    []ColDynamic
+	dynamicColumns    []*ColDynamic
 
 	maxDynamicPaths   int
 	totalDynamicPaths int
@@ -102,29 +102,40 @@ func (c *ColJSON) Row(i int, ptr bool) any {
 }
 
 func (c *ColJSON) ScanRow(dest any, row int) error {
-	//typeIndex := c.variant.discriminators[row]
-	//offsetIndex := c.variant.offsets[row]
-	//var value any
-	//if typeIndex != NullVariantDiscriminator {
-	//	value = c.variant.columns[typeIndex].Row(offsetIndex, false)
-	//}
-	//
-	//switch v := dest.(type) {
-	//case *chcol.Dynamic:
-	//	vt := chcol.NewDynamic(value)
-	//	*v = vt
-	//case **chcol.Dynamic:
-	//	vt := chcol.NewDynamic(value)
-	//	**v = vt
-	//default:
-	//	if typeIndex == NullVariantDiscriminator {
-	//		return nil
-	//	}
-	//
-	//	if err := c.variant.columns[typeIndex].ScanRow(dest, offsetIndex); err != nil {
-	//		return err
-	//	}
-	//}
+	obj := chcol.NewJSON()
+
+	for i, path := range c.typedPaths {
+		col := c.typedColumns[i]
+
+		var value any
+		err := col.ScanRow(&value, row)
+		if err != nil {
+			return fmt.Errorf("failed to scan json row %d for %s typed path %s", row, col.Type(), path)
+		}
+
+		obj.SetValueAtPath(path, value)
+	}
+
+	for i, path := range c.dynamicPaths {
+		col := c.dynamicColumns[i]
+
+		var value chcol.Dynamic
+		err := col.ScanRow(&value, row)
+		if err != nil {
+			return fmt.Errorf("failed to scan json row %d for dynamic path %s", row, path)
+		}
+
+		obj.SetValueAtPath(path, value)
+	}
+
+	switch v := dest.(type) {
+	case *chcol.JSON:
+		*v = *obj
+	case **chcol.JSON:
+		**v = *obj
+	default:
+		return fmt.Errorf("must scan into chcol.JSON type")
+	}
 
 	return nil
 }
@@ -147,16 +158,9 @@ func (c *ColJSON) AppendRow(v any) error {
 		return fmt.Errorf("cannot append type %v to json column, use chcol.JSON type", t)
 	}
 
-	objPaths := obj.Paths()
-	objValues := obj.Values()
-	pathsToValues := make(map[string]any, len(obj.Paths()))
-	for i, path := range objPaths {
-		pathsToValues[path] = objValues[i]
-	}
-
 	// Match typed paths first
 	for i, typedPath := range c.typedPaths {
-		value, ok := pathsToValues[typedPath]
+		value, ok := obj.ValueAtPath(typedPath)
 		if !ok {
 			continue
 		}
@@ -169,12 +173,12 @@ func (c *ColJSON) AppendRow(v any) error {
 	}
 
 	// Match or add dynamic paths
-	for i, objPath := range objPaths {
+	valuesByPath := obj.ValuesByPath()
+	for objPath, value := range valuesByPath {
 		if c.hasTypedPath(objPath) {
 			continue
 		}
 
-		value := objValues[i]
 		if dynamicPathIndex, ok := c.dynamicPathsIndex[objPath]; ok {
 			err := c.dynamicColumns[dynamicPathIndex].AppendRow(value)
 			if err != nil {
@@ -192,7 +196,7 @@ func (c *ColJSON) AppendRow(v any) error {
 
 			c.dynamicPaths = append(c.dynamicPaths, objPath)
 			c.dynamicPathsIndex[objPath] = len(c.dynamicPaths) - 1
-			c.dynamicColumns = append(c.dynamicColumns, *colDynamic)
+			c.dynamicColumns = append(c.dynamicColumns, colDynamic)
 			c.totalDynamicPaths++
 		}
 	}
@@ -287,7 +291,7 @@ func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
 		// TODO: read typed path prefix (low cardinality only?)
 	}
 
-	c.dynamicColumns = make([]ColDynamic, 0, totalDynamicPaths)
+	c.dynamicColumns = make([]*ColDynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {
 		parsedColDynamic, _ := Type("Dynamic").Column("", nil)
 		colDynamic := parsedColDynamic.(*ColDynamic)
@@ -297,7 +301,7 @@ func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
 			return fmt.Errorf("failed to decode dynamic header at path %s for json column: %w", dynamicPath, err)
 		}
 
-		c.dynamicColumns = append(c.dynamicColumns, *colDynamic)
+		c.dynamicColumns = append(c.dynamicColumns, colDynamic)
 	}
 
 	return nil
