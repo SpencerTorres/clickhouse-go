@@ -191,7 +191,7 @@ func (c *ColJSON) AppendRow(v any) error {
 
 			err := colDynamic.AppendRow(value)
 			if err != nil {
-				return fmt.Errorf("failed to append to json column at dynamic path %s: %w", objPath, err)
+				return fmt.Errorf("failed to append to json column at new dynamic path %s: %w", objPath, err)
 			}
 
 			c.dynamicPaths = append(c.dynamicPaths, objPath)
