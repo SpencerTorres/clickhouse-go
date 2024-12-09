@@ -281,12 +281,12 @@ func parseSlice(name string, values any, jCol JSONParent, preFill int) error {
 			switch sKind {
 			case reflect.Struct:
 				col.isNested = true
-				if err = iterateStruct(value, col, 0); err != nil {
+				if err = oldIterateStruct(value, col, 0); err != nil {
 					return err
 				}
 			case reflect.Map:
 				col.isNested = true
-				if err = iterateMap(value, col, 0); err != nil {
+				if err = oldIterateMap(value, col, 0); err != nil {
 					return err
 				}
 			case reflect.Slice:
@@ -311,10 +311,10 @@ func parseStruct(name string, structVal reflect.Value, jCol JSONParent, preFill 
 	if err != nil {
 		return err
 	}
-	return iterateStruct(structVal, col, preFill)
+	return oldIterateStruct(structVal, col, preFill)
 }
 
-func iterateStruct(structVal reflect.Value, col JSONParent, preFill int) error {
+func oldIterateStruct(structVal reflect.Value, col JSONParent, preFill int) error {
 	// structs generally have consistent field counts but we ignore nil values that are any as we can't infer from
 	// these until they occur - so we might need to either backfill when to do occur or insert empty based on previous
 	if structVal.Kind() == reflect.Interface {
@@ -414,10 +414,10 @@ func parseMap(name string, mapVal reflect.Value, jCol JSONParent, preFill int) e
 	if err != nil {
 		return err
 	}
-	return iterateMap(mapVal, col, preFill)
+	return oldIterateMap(mapVal, col, preFill)
 }
 
-func iterateMap(mapVal reflect.Value, col JSONParent, preFill int) error {
+func oldIterateMap(mapVal reflect.Value, col JSONParent, preFill int) error {
 	// maps can have inconsistent numbers of elements - we must ensure they are consistent in the encoding
 	// two inconsistent options - 1. new - map has new columns 2. massing - map has missing columns
 	// for (1) we need to update previous, for (2) we need to ensure we add a null entry
@@ -502,7 +502,7 @@ func appendStructOrMap(jCol *JSONObject, data any) error {
 	vData := reflect.ValueOf(data)
 	kind := vData.Kind()
 	if kind == reflect.Struct {
-		return iterateStruct(vData, jCol, 0)
+		return oldIterateStruct(vData, jCol, 0)
 	}
 	if kind == reflect.Map {
 		if reflect.TypeOf(data).Key().Kind() != reflect.String {
@@ -518,7 +518,7 @@ func appendStructOrMap(jCol *JSONObject, data any) error {
 			jCol.upsertValue("_dummy", "Int8")
 			return jCol.insertEmptyColumn("_dummy")
 		}
-		return iterateMap(vData, jCol, 0)
+		return oldIterateMap(vData, jCol, 0)
 	}
 	return &UnsupportedColumnTypeError{
 		t: Type(fmt.Sprint(kind)),

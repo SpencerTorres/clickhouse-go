@@ -93,6 +93,12 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 	case **chcol.Dynamic:
 		vt := chcol.NewDynamic(value)
 		**v = vt
+	case *chcol.DynamicWithType:
+		vt := chcol.NewDynamicWithType(value, string(c.variant.columns[typeIndex].Type()))
+		*v = vt
+	case **chcol.DynamicWithType:
+		vt := chcol.NewDynamicWithType(value, string(c.variant.columns[typeIndex].Type()))
+		**v = vt
 	default:
 		if typeIndex == NullVariantDiscriminator {
 			return nil
@@ -228,8 +234,7 @@ func (c *ColDynamic) Encode(buffer *proto.Buffer) {
 }
 
 func (c *ColDynamic) ScanType() reflect.Type {
-	//TODO implement me
-	panic("implement me")
+	return scanTypeDynamic
 }
 
 func (c *ColDynamic) Reset() {

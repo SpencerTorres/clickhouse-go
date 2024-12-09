@@ -33,6 +33,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"github.com/ClickHouse/ch-go/proto"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 )
 
 func (t Type) Column(name string, tz *time.Location) (Interface, error) {
@@ -197,6 +198,8 @@ var (
 		scanTypePolygon = reflect.TypeOf(orb.Polygon{})
 		scanTypeDecimal = reflect.TypeOf(decimal.Decimal{})
 		scanTypeMultiPolygon = reflect.TypeOf(orb.MultiPolygon{})
+		scanTypeVariant = reflect.TypeOf(chcol.Variant{})
+		scanTypeDynamic = reflect.TypeOf(chcol.Dynamic{})
 	)
 
 {{- range . }}

@@ -42,6 +42,15 @@ func (v Variant) Interface() interface{} {
 	return v.value
 }
 
+// Int returns the value as an int if possible
+func (v Variant) Int() (int, bool) {
+	if i, ok := v.value.(int); ok {
+		return i, true
+	}
+
+	return 0, false
+}
+
 // Int64 returns the value as an int64 if possible
 func (v Variant) Int64() (int64, bool) {
 	if i, ok := v.value.(int64); ok {
@@ -67,6 +76,16 @@ func (v Variant) Bool() (bool, bool) {
 	}
 
 	return false, false
+}
+
+// MustInt returns the bool value or panics if not possible
+func (v Variant) MustInt() int {
+	i, ok := v.Int()
+	if !ok {
+		panic(fmt.Sprintf("variant value %v is not an int", v.value))
+	}
+
+	return i
 }
 
 // MustInt64 returns the bool value or panics if not possible

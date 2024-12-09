@@ -141,6 +141,12 @@ func (c *ColVariant) ScanRow(dest any, row int) error {
 	case **chcol.Variant:
 		vt := chcol.NewVariant(value)
 		**v = vt
+	case *chcol.VariantWithType:
+		vt := chcol.NewVariantWithType(value, string(c.columns[typeIndex].Type()))
+		*v = vt
+	case **chcol.VariantWithType:
+		vt := chcol.NewVariantWithType(value, string(c.columns[typeIndex].Type()))
+		**v = vt
 	default:
 		if typeIndex == NullVariantDiscriminator {
 			return nil
@@ -228,8 +234,7 @@ func (c *ColVariant) Encode(buffer *proto.Buffer) {
 }
 
 func (c *ColVariant) ScanType() reflect.Type {
-	//TODO implement me
-	panic("implement me")
+	return scanTypeVariant
 }
 
 func (c *ColVariant) Reset() {
