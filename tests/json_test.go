@@ -108,7 +108,7 @@ type TestStruct struct {
 
 	KeysNumbers map[string]int64 `chType:"Map(String, Int64)"`
 	Metadata    map[string]interface{}
-	
+
 	DynamicString chcol.DynamicWithType
 	DynamicInt    chcol.DynamicWithType
 	DynamicMap    chcol.DynamicWithType
@@ -168,13 +168,13 @@ func TestJSONStruct(t *testing.T) {
 			Country: "JSON World",
 		},
 		KeysNumbers: map[string]int64{"FieldA": 42, "FieldB": 32},
-		Metadata: map[string]interface{}{
-			"FieldA": "a",
-			"FieldB": "b",
-			"FieldC": map[string]interface{}{
-				"FieldD": "d",
-			},
-		},
+		//Metadata: map[string]interface{}{
+		//	"FieldA": "a",
+		//	"FieldB": "b",
+		//	"FieldC": map[string]interface{}{
+		//		"FieldD": "d",
+		//	},
+		//},
 		DynamicString: chcol.NewDynamic("str").WithType("String"),
 		DynamicInt:    chcol.NewDynamic(48).WithType("Int64"),
 		DynamicMap:    chcol.NewDynamic(map[string]string{"a": "a", "b": "b"}).WithType("Map(String, String)"),

@@ -170,6 +170,10 @@ func (c *ColDynamic) AppendRow(v any) error {
 	// If preferred type wasn't provided, try each column
 	var err error
 	for i, col := range c.variant.columns {
+		if c.typeNames[i] == "SharedVariant" {
+			continue
+		}
+
 		if err = col.AppendRow(v); err == nil {
 			c.variant.rows++
 			c.variant.discriminators = append(c.variant.discriminators, uint8(i))
@@ -177,7 +181,9 @@ func (c *ColDynamic) AppendRow(v any) error {
 		}
 	}
 
-	return fmt.Errorf("value %v cannot be stored in dynamic column %s %s: %w", v, c.name, c.chType, err)
+	// TODO: infer and append ClickHouse type from Go type
+
+	return fmt.Errorf("value \"%v\" cannot be stored in dynamic column: no compatible types", v)
 }
 
 func (c *ColDynamic) sortColumnsForEncoding() {

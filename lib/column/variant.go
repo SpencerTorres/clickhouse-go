@@ -213,7 +213,7 @@ func (c *ColVariant) AppendRow(v any) error {
 		}
 	}
 
-	return fmt.Errorf("value %v cannot be stored in variant column %s %s: %w", v, c.name, c.chType, err)
+	return fmt.Errorf("value \"%v\" cannot be stored in variant column: no compatible types", v)
 }
 
 func (c *ColVariant) encodeHeader(buffer *proto.Buffer) {
