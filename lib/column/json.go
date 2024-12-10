@@ -33,6 +33,7 @@ const DefaultMaxDynamicPaths = 1024
 
 type ColJSON struct {
 	chType Type
+	tz     *time.Location
 	name   string
 	rows   int
 
@@ -168,6 +169,7 @@ func splitWithDelimiters(s string) []string {
 
 func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
+	c.tz = tz
 	tStr := string(t)
 
 	c.typedPathsIndex = make(map[string]int)
@@ -388,7 +390,7 @@ func (c *ColJSON) AppendRow(v any) error {
 			}
 		} else {
 			// Add new dynamic path + column
-			parsedColDynamic, _ := Type("Dynamic").Column("", nil)
+			parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
 			colDynamic := parsedColDynamic.(*ColDynamic)
 
 			err := colDynamic.AppendRow(value)
@@ -497,7 +499,7 @@ func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
 
 	c.dynamicColumns = make([]*ColDynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {
-		parsedColDynamic, _ := Type("Dynamic").Column("", nil)
+		parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
 		colDynamic := parsedColDynamic.(*ColDynamic)
 
 		err := colDynamic.decodeHeader(reader)

@@ -34,7 +34,9 @@ const DefaultMaxDynamicTypes = 32
 
 type ColDynamic struct {
 	chType Type
-	name   string
+	tz     *time.Location
+
+	name string
 
 	maxTypes   uint8
 	totalTypes uint8
@@ -45,6 +47,7 @@ type ColDynamic struct {
 
 func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
+	c.tz = tz
 	tStr := string(t)
 
 	c.maxTypes = DefaultMaxDynamicTypes
@@ -162,7 +165,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 		}
 
 		if !ok {
-			newCol, err := forcedType.Column("", nil)
+			newCol, err := forcedType.Column("", c.tz)
 			if err != nil {
 				return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: unable to append type: %w", v, c.name, c.chType, forcedType, err)
 			}
@@ -309,7 +312,7 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 			typeName = "String"
 		}
 
-		col, err := Type(typeName).Column("", nil)
+		col, err := Type(typeName).Column("", c.tz)
 		if err != nil {
 			return fmt.Errorf("failed to parse dynamic column with type %s: %w", typeName, err)
 		}
