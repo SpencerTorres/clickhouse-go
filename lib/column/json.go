@@ -63,6 +63,11 @@ func (c *ColJSON) hasDynamicPath(path string) bool {
 	return ok
 }
 
+func (c *ColJSON) hasSkipPath(path string) bool {
+	_, ok := c.skipPathsIndex[path]
+	return ok
+}
+
 // pathHasNestedValues returns true if the provided path has child paths in typed or dynamic paths
 // TODO: cache this information in a Set to reduce time complexity?
 func (c *ColJSON) pathHasNestedValues(path string) bool {
@@ -379,7 +384,7 @@ func (c *ColJSON) AppendRow(v any) error {
 	// Match or add dynamic paths
 	valuesByPath := obj.ValuesByPath()
 	for objPath, value := range valuesByPath {
-		if c.hasTypedPath(objPath) {
+		if c.hasTypedPath(objPath) || c.hasSkipPath(objPath) {
 			continue
 		}
 
