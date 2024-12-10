@@ -28,6 +28,7 @@ import (
 )
 
 const SupportedDynamicSerializationVersion = 1
+const DefaultMaxDynamicTypes = 32
 
 type ColDynamic struct {
 	chType Type
@@ -44,14 +45,14 @@ func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
 
 	// TODO: parse maxTypes for encoding. For decoding, max types is already included in the payload
-	//c.maxTypes = 0
+	c.maxTypes = DefaultMaxDynamicTypes
 
 	//return nil, &UnsupportedColumnTypeError{
 	//	t: t,
 	//}
 
 	c.typeNames = append(c.typeNames, "SharedVariant")
-	sv, _ := Type("String").Column("", nil)
+	sv, _ := Type("String").Column("", tz)
 	c.variant.columns = append(c.variant.columns, sv)
 
 	return c, nil

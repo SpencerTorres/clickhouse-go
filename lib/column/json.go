@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +48,7 @@ type ColJSON struct {
 	dynamicColumns    []*ColDynamic
 
 	maxDynamicPaths   int
+	maxDynamicTypes   int
 	totalDynamicPaths int
 }
 
@@ -127,21 +129,122 @@ func (c *ColJSON) scanDynamicPathToValue(path string, row int, value reflect.Val
 	return nil
 }
 
+// splitWithDelimiters splits the string while considering backticks and parentheses
+func splitWithDelimiters(s string) []string {
+	var parts []string
+	var currentPart strings.Builder
+	var brackets int
+	inBackticks := false
+
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '`':
+			inBackticks = !inBackticks
+			currentPart.WriteByte(s[i])
+		case '(':
+			brackets++
+			currentPart.WriteByte(s[i])
+		case ')':
+			brackets--
+			currentPart.WriteByte(s[i])
+		case ',':
+			if !inBackticks && brackets == 0 {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			} else {
+				currentPart.WriteByte(s[i])
+			}
+		default:
+			currentPart.WriteByte(s[i])
+		}
+	}
+
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	return parts
+}
+
 func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
+	tStr := string(t)
 
 	c.typedPathsIndex = make(map[string]int)
 	c.skipPathsIndex = make(map[string]int)
 	c.dynamicPathsIndex = make(map[string]int)
-
 	c.maxDynamicPaths = DefaultMaxDynamicPaths
+	c.maxDynamicTypes = DefaultMaxDynamicTypes
 
-	// TODO: parse typed paths, skip paths, etc.
-	//c.maxTypes = 0
+	if tStr == "JSON" {
+		return c, nil
+	}
 
-	//return nil, &UnsupportedColumnTypeError{
-	//	t: t,
-	//}
+	if !strings.HasPrefix(tStr, "JSON(") || !strings.HasSuffix(tStr, ")") {
+		return nil, &UnsupportedColumnTypeError{t: t}
+	}
+
+	typePartsStr := strings.TrimPrefix(tStr, "JSON(")
+	typePartsStr = strings.TrimSuffix(typePartsStr, ")")
+
+	typeParts := splitWithDelimiters(typePartsStr)
+	for _, typePart := range typeParts {
+		typePart = strings.TrimSpace(typePart)
+
+		if strings.HasPrefix(typePart, "max_dynamic_paths=") {
+			v := strings.TrimPrefix(typePart, "max_dynamic_paths=")
+			if maxPaths, err := strconv.Atoi(v); err == nil {
+				c.maxDynamicPaths = maxPaths
+			}
+
+			continue
+		}
+
+		if strings.HasPrefix(typePart, "max_dynamic_types=") {
+			v := strings.TrimPrefix(typePart, "max_dynamic_types=")
+			if maxTypes, err := strconv.Atoi(v); err == nil {
+				c.maxDynamicTypes = maxTypes
+			}
+
+			continue
+		}
+
+		if strings.HasPrefix(typePart, "SKIP REGEXP") {
+			pattern := strings.TrimPrefix(typePart, "SKIP REGEXP")
+			pattern = strings.Trim(pattern, " '")
+			c.skipPaths = append(c.skipPaths, pattern)
+			c.skipPathsIndex[pattern] = len(c.skipPaths) - 1
+
+			continue
+		}
+
+		if strings.HasPrefix(typePart, "SKIP") {
+			path := strings.TrimPrefix(typePart, "SKIP")
+			path = strings.Trim(path, " `")
+			c.skipPaths = append(c.skipPaths, path)
+			c.skipPathsIndex[path] = len(c.skipPaths) - 1
+
+			continue
+		}
+
+		typedPathParts := strings.SplitN(typePart, " ", 2)
+		if len(typedPathParts) != 2 {
+			continue
+		}
+
+		typedPath := strings.Trim(typedPathParts[0], "`")
+		typeName := strings.TrimSpace(typedPathParts[1])
+
+		c.typedPaths = append(c.typedPaths, typedPath)
+		c.typedPathsIndex[typedPath] = len(c.typedPaths) - 1
+
+		col, err := Type(typeName).Column("", tz)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init column of type \"%s\" at path \"%s\": %w", typeName, typedPath, err)
+		}
+
+		c.typedColumns = append(c.typedColumns, col)
+	}
 
 	return c, nil
 }

@@ -127,7 +127,7 @@ func TestJSONStruct(t *testing.T) {
 
 	const ddl = `
 			CREATE TABLE IF NOT EXISTS test_json (
-				  c JSON
+				  c JSON(Name String, Age Int64, KeysNumbers Map(String, Int64), SKIP fake.field)
 			) Engine = MergeTree() ORDER BY tuple()
 		`
 	require.NoError(t, conn.Exec(ctx, ddl))
