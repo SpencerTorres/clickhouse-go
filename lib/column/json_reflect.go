@@ -330,6 +330,11 @@ func iterateStruct(val reflect.Value, prefix string, json *chcol.JSON) error {
 	return nil
 }
 
+var (
+	reflectTypeVariant         = reflect.TypeOf(chcol.Variant{})
+	reflectTypeVariantWithType = reflect.TypeOf(chcol.VariantWithType{})
+)
+
 // handleValue processes a single value and adds it to the JSON data
 func handleValue(val reflect.Value, path string, json *chcol.JSON, forcedType string) error {
 	if val.Kind() == reflect.Interface {
@@ -350,7 +355,7 @@ func handleValue(val reflect.Value, path string, json *chcol.JSON, forcedType st
 		return handleValue(val.Elem(), path, json, forcedType)
 
 	case reflect.Struct:
-		if val.Type().String() == "chcol.Variant" || val.Type().String() == "chcol.VariantWithType" {
+		if val.Type() == reflectTypeVariant || val.Type() == reflectTypeVariantWithType {
 			json.SetValueAtPath(path, val.Interface())
 			return nil
 		}
