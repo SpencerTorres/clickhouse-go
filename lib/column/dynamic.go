@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/ch-go/proto"
@@ -43,17 +45,31 @@ type ColDynamic struct {
 
 func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
+	tStr := string(t)
 
-	// TODO: parse maxTypes for encoding. For decoding, max types is already included in the payload
 	c.maxTypes = DefaultMaxDynamicTypes
-
-	//return nil, &UnsupportedColumnTypeError{
-	//	t: t,
-	//}
 
 	c.typeNames = append(c.typeNames, "SharedVariant")
 	sv, _ := Type("String").Column("", tz)
 	c.variant.columns = append(c.variant.columns, sv)
+
+	if tStr == "Dynamic" {
+		return c, nil
+	}
+
+	if !strings.HasPrefix(tStr, "Dynamic(") || !strings.HasSuffix(tStr, ")") {
+		return nil, &UnsupportedColumnTypeError{t: t}
+	}
+
+	typeParamsStr := strings.TrimPrefix(tStr, "Dynamic(")
+	typeParamsStr = strings.TrimSuffix(typeParamsStr, ")")
+
+	if strings.HasPrefix(typeParamsStr, "max_types=") {
+		v := strings.TrimPrefix(typeParamsStr, "max_types=")
+		if maxTypes, err := strconv.Atoi(v); err == nil {
+			c.maxTypes = uint8(maxTypes)
+		}
+	}
 
 	return c, nil
 }

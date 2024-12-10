@@ -38,7 +38,7 @@ func TestDynamic(t *testing.T) {
 
 	const ddl = `
 			CREATE TABLE IF NOT EXISTS test_dynamic (
-				  c Dynamic
+				  c Dynamic(max_types=3)
 			) Engine = MergeTree() ORDER BY tuple()
 		`
 	require.NoError(t, conn.Exec(ctx, ddl))
