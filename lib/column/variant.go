@@ -39,30 +39,24 @@ type ColVariant struct {
 	offsets        []int
 
 	columns []Interface
-	index   map[string]int
 }
 
 func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.chType = t
 	var (
 		element       []rune
-		elements      []namedCol
+		elements      []Type
 		brackets      int
 		appendElement = func() {
 			if len(element) != 0 {
 				cType := strings.TrimSpace(string(element))
-				name := ""
 				if parts := strings.SplitN(cType, " ", 2); len(parts) == 2 {
 					if !strings.Contains(parts[0], "(") {
-						name = parts[0]
 						cType = parts[1]
 					}
 				}
 
-				elements = append(elements, namedCol{
-					name:    name,
-					colType: Type(strings.TrimSpace(cType)),
-				})
+				elements = append(elements, Type(strings.TrimSpace(cType)))
 			}
 		}
 	)
@@ -84,16 +78,14 @@ func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	}
 
 	appendElement()
-	c.index = make(map[string]int)
 
-	for i, ct := range elements {
-		column, err := ct.colType.Column(ct.name, tz)
+	for _, ct := range elements {
+		column, err := ct.Column("", tz)
 		if err != nil {
 			return nil, err
 		}
 
 		c.columns = append(c.columns, column)
-		c.index[ct.name] = i
 	}
 
 	if len(c.columns) != 0 {
