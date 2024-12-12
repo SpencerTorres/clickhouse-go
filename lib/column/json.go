@@ -42,7 +42,7 @@ type ColJSON struct {
 
 	serializationVersion uint64
 
-	jsonStrings *String
+	jsonStrings String
 
 	typedPaths      []string
 	typedPathsIndex map[string]int
@@ -185,7 +185,6 @@ func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	tStr := string(t)
 
 	c.serializationVersion = JSONUnsetSerializationVersion
-	c.jsonStrings = &String{}
 	c.typedPathsIndex = make(map[string]int)
 	c.skipPathsIndex = make(map[string]int)
 	c.dynamicPathsIndex = make(map[string]int)
