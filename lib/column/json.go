@@ -493,7 +493,7 @@ func (c *ColJSON) encodeObjectData(buffer *proto.Buffer) {
 		col.encodeData(buffer)
 	}
 
-	// TODO: shared variant goes here? per row?
+	// TODO: SharedData per row, empty for now.
 	for i := 0; i < c.rows; i++ {
 		buffer.PutUInt64(0)
 	}
@@ -567,6 +567,8 @@ func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
 
 		c.dynamicColumns = append(c.dynamicColumns, colDynamic)
 	}
+
+	// TODO: SharedData per row, ignored for now.
 
 	return nil
 }
