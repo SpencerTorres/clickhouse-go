@@ -20,6 +20,7 @@ package column
 import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -28,7 +29,9 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
-const SupportedJSONSerializationVersion = 0
+const JSONObjectSerializationVersion uint64 = 0
+const JSONStringSerializationVersion uint64 = 1
+const JSONUnsetSerializationVersion uint64 = math.MaxUint64
 const DefaultMaxDynamicPaths = 1024
 
 type ColJSON struct {
@@ -37,12 +40,16 @@ type ColJSON struct {
 	name   string
 	rows   int
 
+	serializationVersion uint64
+
+	jsonStrings *String
+
 	typedPaths      []string
 	typedPathsIndex map[string]int
 	typedColumns    []Interface
 
 	skipPaths      []string
-	skipPathsIndex map[string]int // TODO: ignore appended paths based on skip paths? does server ignore automatically?
+	skipPathsIndex map[string]int
 
 	dynamicPaths      []string
 	dynamicPathsIndex map[string]int
@@ -177,6 +184,8 @@ func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.tz = tz
 	tStr := string(t)
 
+	c.serializationVersion = JSONUnsetSerializationVersion
+	c.jsonStrings = &String{}
 	c.typedPathsIndex = make(map[string]int)
 	c.skipPathsIndex = make(map[string]int)
 	c.dynamicPathsIndex = make(map[string]int)
@@ -280,6 +289,17 @@ func (c *ColJSON) Row(i int, ptr bool) any {
 }
 
 func (c *ColJSON) ScanRow(dest any, row int) error {
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		return c.scanRowObject(dest, row)
+	case JSONStringSerializationVersion:
+		return c.scanRowString(dest, row)
+	default:
+		return fmt.Errorf("unsupported JSON serialization version for scan: %d", c.serializationVersion)
+	}
+}
+
+func (c *ColJSON) scanRowObject(dest any, row int) error {
 	switch val := reflect.ValueOf(dest); val.Kind() {
 	case reflect.Ptr:
 		if val.Elem().Kind() == reflect.Struct {
@@ -330,12 +350,37 @@ func (c *ColJSON) ScanRow(dest any, row int) error {
 	return nil
 }
 
+func (c *ColJSON) scanRowString(dest any, row int) error {
+	return c.jsonStrings.ScanRow(dest, row)
+}
+
 func (c *ColJSON) Append(v any) (nulls []uint8, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (c *ColJSON) AppendRow(v any) error {
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		return c.appendRowObject(v)
+	case JSONStringSerializationVersion:
+		return c.appendRowString(v)
+	default:
+		// Unset serialization preference, try string first
+		var err error
+		if err = c.appendRowString(v); err == nil {
+			c.serializationVersion = JSONStringSerializationVersion
+			return nil
+		} else if err = c.appendRowObject(v); err == nil {
+			c.serializationVersion = JSONObjectSerializationVersion
+			return nil
+		}
+
+		return fmt.Errorf("unsupported type \"%s\" for JSON column, must use string, []byte, struct, or map: %w", reflect.TypeOf(v).String(), err)
+	}
+}
+
+func (c *ColJSON) appendRowObject(v any) error {
 	var obj *chcol.JSON
 	var err error
 	switch val := reflect.ValueOf(v); val.Kind() {
@@ -414,8 +459,18 @@ func (c *ColJSON) AppendRow(v any) error {
 	return nil
 }
 
-func (c *ColJSON) encodeHeader(buffer *proto.Buffer) {
-	buffer.PutUInt64(SupportedJSONSerializationVersion)
+func (c *ColJSON) appendRowString(v any) error {
+	err := c.jsonStrings.AppendRow(v)
+	if err != nil {
+		return err
+	}
+
+	c.rows++
+
+	return nil
+}
+
+func (c *ColJSON) encodeObjectHeader(buffer *proto.Buffer) {
 	buffer.PutUVarInt(uint64(c.maxDynamicPaths))
 	buffer.PutUVarInt(uint64(c.totalDynamicPaths))
 
@@ -431,7 +486,7 @@ func (c *ColJSON) encodeHeader(buffer *proto.Buffer) {
 	}
 }
 
-func (c *ColJSON) encodeData(buffer *proto.Buffer) {
+func (c *ColJSON) encodeObjectData(buffer *proto.Buffer) {
 	for _, col := range c.typedColumns {
 		col.Encode(buffer)
 	}
@@ -446,9 +501,22 @@ func (c *ColJSON) encodeData(buffer *proto.Buffer) {
 	}
 }
 
+func (c *ColJSON) encodeStringData(buffer *proto.Buffer) {
+	c.jsonStrings.Encode(buffer)
+}
+
 func (c *ColJSON) Encode(buffer *proto.Buffer) {
-	c.encodeHeader(buffer)
-	c.encodeData(buffer)
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		buffer.PutUInt64(JSONObjectSerializationVersion)
+		c.encodeObjectHeader(buffer)
+		c.encodeObjectData(buffer)
+		return
+	case JSONStringSerializationVersion:
+		buffer.PutUInt64(JSONStringSerializationVersion)
+		c.encodeStringData(buffer)
+		return
+	}
 }
 
 func (c *ColJSON) ScanType() reflect.Type {
@@ -461,14 +529,7 @@ func (c *ColJSON) Reset() {
 	panic("implement me")
 }
 
-func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
-	jsonSerializationVersion, err := reader.UInt64()
-	if err != nil {
-		return fmt.Errorf("failed to read json serialization version: %w", err)
-	} else if jsonSerializationVersion != SupportedJSONSerializationVersion {
-		return fmt.Errorf("unsupported json serialization version: %d", jsonSerializationVersion)
-	}
-
+func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
 	maxDynamicPaths, err := reader.UVarInt()
 	if err != nil {
 		return fmt.Errorf("failed to read max dynamic paths for json column: %w", err)
@@ -518,7 +579,7 @@ func (c *ColJSON) decodeHeader(reader *proto.Reader) error {
 	return nil
 }
 
-func (c *ColJSON) decodeData(reader *proto.Reader, rows int) error {
+func (c *ColJSON) decodeObjectData(reader *proto.Reader, rows int) error {
 	for i, col := range c.typedColumns {
 		typedPath := c.typedPaths[i]
 
@@ -540,18 +601,40 @@ func (c *ColJSON) decodeData(reader *proto.Reader, rows int) error {
 	return nil
 }
 
+func (c *ColJSON) decodeStringData(reader *proto.Reader, rows int) error {
+	return c.jsonStrings.Decode(reader, rows)
+}
+
 func (c *ColJSON) Decode(reader *proto.Reader, rows int) error {
 	c.rows = rows
 
-	err := c.decodeHeader(reader)
+	jsonSerializationVersion, err := reader.UInt64()
 	if err != nil {
-		return fmt.Errorf("failed to decode json header: %w", err)
+		return fmt.Errorf("failed to read json serialization version: %w", err)
 	}
 
-	err = c.decodeData(reader, rows)
-	if err != nil {
-		return fmt.Errorf("failed to decode json data: %w", err)
-	}
+	c.serializationVersion = jsonSerializationVersion
 
-	return nil
+	switch jsonSerializationVersion {
+	case JSONObjectSerializationVersion:
+		err := c.decodeObjectHeader(reader)
+		if err != nil {
+			return fmt.Errorf("failed to decode json object header: %w", err)
+		}
+
+		err = c.decodeObjectData(reader, rows)
+		if err != nil {
+			return fmt.Errorf("failed to decode json object data: %w", err)
+		}
+
+		return nil
+	case JSONStringSerializationVersion:
+		err = c.decodeStringData(reader, rows)
+		if err != nil {
+			return fmt.Errorf("failed to decode json string data: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported JSON serialization version for decode: %d", jsonSerializationVersion)
+	}
 }

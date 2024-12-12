@@ -19,6 +19,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"github.com/stretchr/testify/require"
@@ -190,5 +191,75 @@ func TestJSONStruct(t *testing.T) {
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
+	require.NoError(t, err)
+}
+
+func TestJSONString(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := GetNativeConnection(clickhouse.Settings{
+		"max_execution_time":                        60,
+		"allow_experimental_json_type":              true,
+		"output_format_native_write_json_as_string": true,
+	}, nil, &clickhouse.Compression{
+		Method: clickhouse.CompressionLZ4,
+	})
+	require.NoError(t, err)
+
+	const ddl = `
+			CREATE TABLE IF NOT EXISTS test_json (
+				  c JSON(Name String, Age Int64, KeysNumbers Map(String, Int64), SKIP fake.field)
+			) Engine = MergeTree() ORDER BY tuple()
+		`
+	require.NoError(t, conn.Exec(ctx, ddl))
+	defer func() {
+		require.NoError(t, conn.Exec(ctx, "DROP TABLE IF EXISTS test_json"))
+	}()
+
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_json (c)")
+	require.NoError(t, err)
+
+	inputRow := TestStruct{
+		Name:    "Mr. JSON",
+		Age:     42,
+		Active:  true,
+		Score:   3.14,
+		Tags:    []string{"a", "b"},
+		Numbers: []int64{20, 40},
+		Address: Address{
+			Street:  "2024 JSON St",
+			City:    "JSON City",
+			Country: "JSON World",
+		},
+		KeysNumbers: map[string]int64{"FieldA": 42, "FieldB": 32},
+		//Metadata: map[string]interface{}{
+		//	"FieldA": "a",
+		//	"FieldB": "b",
+		//	"FieldC": map[string]interface{}{
+		//		"FieldD": "d",
+		//	},
+		//},
+		DynamicString: chcol.NewDynamic("str").WithType("String"),
+		DynamicInt:    chcol.NewDynamic(48).WithType("Int64"),
+		DynamicMap:    chcol.NewDynamic(map[string]string{"a": "a", "b": "b"}).WithType("Map(String, String)"),
+	}
+
+	inputRowStr, err := json.Marshal(inputRow)
+	require.NoError(t, err)
+	require.NoError(t, batch.Append(inputRowStr))
+
+	require.NoError(t, batch.Send())
+
+	rows, err := conn.Query(ctx, "SELECT c FROM test_json")
+	require.NoError(t, err)
+
+	var row json.RawMessage
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+
+	var rowStruct TestStruct
+	err = json.Unmarshal(row, &rowStruct)
 	require.NoError(t, err)
 }
