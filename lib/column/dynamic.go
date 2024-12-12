@@ -51,13 +51,15 @@ func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	c.tz = tz
 	tStr := string(t)
 
-	c.maxTypes = DefaultMaxDynamicTypes
-
-	c.typeNames = append(c.typeNames, "SharedVariant")
+	// SharedVariant is special, and does not count against totalTypes
 	c.typeNamesIndex = make(map[string]int)
-	c.typeNamesIndex[c.typeNames[0]] = 0
+	c.addTypeName("SharedVariant")
 	sv, _ := Type("String").Column("", tz)
-	c.variant.columns = append(c.variant.columns, sv)
+	c.variant.columnTypeIndex = make(map[string]uint8)
+	c.variant.addColumn(sv)
+
+	c.maxTypes = DefaultMaxDynamicTypes
+	c.totalTypes = 0
 
 	if tStr == "Dynamic" {
 		return c, nil
@@ -78,6 +80,12 @@ func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	}
 
 	return c, nil
+}
+
+func (c *ColDynamic) addTypeName(typeName string) {
+	c.typeNames = append(c.typeNames, typeName)
+	c.typeNamesIndex[typeName] = len(c.typeNames) - 1
+	c.totalTypes++
 }
 
 func (c *ColDynamic) Name() string {
@@ -164,11 +172,9 @@ func (c *ColDynamic) AppendRow(v any) error {
 				return fmt.Errorf("value %v cannot be stored in dynamic column %s %s with forced type %s: unable to append type: %w", v, c.name, c.chType, requestedType, err)
 			}
 
-			c.typeNames = append(c.typeNames, requestedType)
-			c.typeNamesIndex[requestedType] = len(c.typeNames) - 1
-			c.totalTypes++
+			c.addTypeName(requestedType)
 			colIndex = int(c.totalTypes)
-			c.variant.columns = append(c.variant.columns, newCol)
+			c.variant.addColumn(newCol)
 			col = newCol
 		}
 
@@ -217,6 +223,7 @@ func (c *ColDynamic) sortColumnsForEncoding() {
 		nextDiscriminators[i] = uint8(correctIndex)
 		nextColumns[correctIndex] = c.variant.columns[i]
 		c.typeNamesIndex[typeName] = correctIndex
+		c.variant.columnTypeIndex[typeName] = uint8(correctIndex)
 	}
 
 	for i := range c.variant.discriminators {
@@ -300,13 +307,14 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 
 	for i, typeName := range c.typeNames {
 		c.typeNamesIndex[typeName] = i
+		c.variant.columnTypeIndex[typeName] = uint8(i)
 		if typeName == "SharedVariant" {
 			typeName = "String"
 		}
 
 		col, err := Type(typeName).Column("", c.tz)
 		if err != nil {
-			return fmt.Errorf("failed to parse dynamic column with type %s: %w", typeName, err)
+			return fmt.Errorf("failed to add dynamic column with type %s: %w", typeName, err)
 		}
 		c.variant.columns = append(c.variant.columns, col)
 	}

@@ -38,7 +38,8 @@ type ColVariant struct {
 	discriminators []uint8
 	offsets        []int
 
-	columns []Interface
+	columns         []Interface
+	columnTypeIndex map[string]uint8
 }
 
 func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
@@ -79,13 +80,14 @@ func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
 
 	appendElement()
 
-	for _, ct := range elements {
-		column, err := ct.Column("", tz)
+	c.columnTypeIndex = make(map[string]uint8, len(elements))
+	for _, columnType := range elements {
+		column, err := columnType.Column("", tz)
 		if err != nil {
 			return nil, err
 		}
 
-		c.columns = append(c.columns, column)
+		c.addColumn(column)
 	}
 
 	if len(c.columns) != 0 {
@@ -95,6 +97,11 @@ func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
 	return nil, &UnsupportedColumnTypeError{
 		t: t,
 	}
+}
+
+func (c *ColVariant) addColumn(col Interface) {
+	c.columns = append(c.columns, col)
+	c.columnTypeIndex[string(col.Type())] = uint8(len(c.columns) - 1)
 }
 
 func (c *ColVariant) Name() string {
@@ -158,40 +165,30 @@ func (c *ColVariant) Append(v any) (nulls []uint8, err error) {
 }
 
 func (c *ColVariant) AppendRow(v any) error {
-	var forcedType Type
+	var requestedType string
 	switch v.(type) {
 	case nil:
 		c.rows++
 		c.discriminators = append(c.discriminators, NullVariantDiscriminator)
 		return nil
 	case chcol.VariantWithType:
-		forcedType = Type(v.(chcol.VariantWithType).Type())
+		requestedType = v.(chcol.VariantWithType).Type()
 	case *chcol.VariantWithType:
-		forcedType = Type(v.(*chcol.VariantWithType).Type())
+		requestedType = v.(*chcol.VariantWithType).Type()
 	}
 
-	if forcedType != "" {
-		var i int
-		var col Interface
-		var ok bool
-		// TODO: this could be pre-calculated as a map[string]int (name->index)
-		for i, col = range c.columns {
-			if col.Type() == forcedType {
-				ok = true
-				break
-			}
-		}
-
+	if requestedType != "" {
+		typeIndex, ok := c.columnTypeIndex[requestedType]
 		if !ok {
-			return fmt.Errorf("value %v cannot be stored in variant column %s %s with forced type %s: type not present in variant", v, c.name, c.chType, forcedType)
+			return fmt.Errorf("value %v cannot be stored in variant column %s with requested type %s: type not present in variant", v, c.chType, requestedType)
 		}
 
-		if err := col.AppendRow(v); err != nil {
-			return fmt.Errorf("value %v cannot be stored in variant column %s %s with forced type %s: %w", v, c.name, c.chType, forcedType, err)
+		if err := c.columns[typeIndex].AppendRow(v); err != nil {
+			return fmt.Errorf("failed to append row to variant column with requested type %s: %w", requestedType, err)
 		}
 
 		c.rows++
-		c.discriminators = append(c.discriminators, uint8(i))
+		c.discriminators = append(c.discriminators, typeIndex)
 		return nil
 	}
 
