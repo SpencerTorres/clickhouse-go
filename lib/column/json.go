@@ -403,7 +403,7 @@ func (c *ColJSON) appendRowObject(v any) error {
 		vv := v.(chcol.JSON)
 		obj = &vv
 	case *chcol.JSON:
-		obj = (v.(*chcol.JSON))
+		obj = v.(*chcol.JSON)
 	}
 
 	if obj == nil {

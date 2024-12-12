@@ -97,17 +97,17 @@ type Address struct {
 }
 
 type TestStruct struct {
-	Name   string  `chType:"String"`
-	Age    int64   `chType:"Int64"`
-	Active bool    `chType:"Bool"`
-	Score  float64 `chType:"Float64"`
+	Name   string
+	Age    int64
+	Active bool
+	Score  float64
 
-	Tags    []string `chType:"Array(String)"`
-	Numbers []int64  `chType:"Array(Int64)"`
+	Tags    []string
+	Numbers []int64
 
 	Address Address
 
-	KeysNumbers map[string]int64 `chType:"Map(String, Int64)"`
+	KeysNumbers map[string]int64
 	Metadata    map[string]interface{}
 
 	DynamicString chcol.DynamicWithType
@@ -169,13 +169,13 @@ func TestJSONStruct(t *testing.T) {
 			Country: "JSON World",
 		},
 		KeysNumbers: map[string]int64{"FieldA": 42, "FieldB": 32},
-		//Metadata: map[string]interface{}{
-		//	"FieldA": "a",
-		//	"FieldB": "b",
-		//	"FieldC": map[string]interface{}{
-		//		"FieldD": "d",
-		//	},
-		//},
+		Metadata: map[string]interface{}{
+			"FieldA": "a",
+			"FieldB": "b",
+			"FieldC": map[string]interface{}{
+				"FieldD": "d",
+			},
+		},
 		DynamicString: chcol.NewDynamic("str").WithType("String"),
 		DynamicInt:    chcol.NewDynamic(48).WithType("Int64"),
 		DynamicMap:    chcol.NewDynamic(map[string]string{"a": "a", "b": "b"}).WithType("Map(String, String)"),
@@ -232,13 +232,13 @@ func TestJSONString(t *testing.T) {
 			Country: "JSON World",
 		},
 		KeysNumbers: map[string]int64{"FieldA": 42, "FieldB": 32},
-		//Metadata: map[string]interface{}{
-		//	"FieldA": "a",
-		//	"FieldB": "b",
-		//	"FieldC": map[string]interface{}{
-		//		"FieldD": "d",
-		//	},
-		//},
+		Metadata: map[string]interface{}{
+			"FieldA": "a",
+			"FieldB": "b",
+			"FieldC": map[string]interface{}{
+				"FieldD": "d",
+			},
+		},
 		DynamicString: chcol.NewDynamic("str").WithType("String"),
 		DynamicInt:    chcol.NewDynamic(48).WithType("Int64"),
 		DynamicMap:    chcol.NewDynamic(map[string]string{"a": "a", "b": "b"}).WithType("Map(String, String)"),

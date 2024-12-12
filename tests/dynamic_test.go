@@ -74,3 +74,52 @@ func TestDynamic(t *testing.T) {
 	require.Equal(t, "test", row.MustString())
 
 }
+
+func TestDynamicInference(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := GetNativeConnection(clickhouse.Settings{
+		"max_execution_time":              60,
+		"allow_experimental_dynamic_type": true,
+	}, nil, &clickhouse.Compression{
+		Method: clickhouse.CompressionLZ4,
+	})
+	require.NoError(t, err)
+
+	const ddl = `
+			CREATE TABLE IF NOT EXISTS test_dynamic (
+				  c Dynamic
+			) Engine = MergeTree() ORDER BY tuple()
+		`
+	require.NoError(t, conn.Exec(ctx, ddl))
+	defer func() {
+		require.NoError(t, conn.Exec(ctx, "DROP TABLE IF EXISTS test_dynamic"))
+	}()
+
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_dynamic (c)")
+	require.NoError(t, err)
+	require.NoError(t, batch.Append(true))
+	require.NoError(t, batch.Append(42))
+	require.NoError(t, batch.Append("test"))
+	require.NoError(t, batch.Send())
+
+	rows, err := conn.Query(ctx, "SELECT c FROM test_dynamic")
+	require.NoError(t, err)
+
+	var row chcol.Dynamic
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, true, row.MustBool())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, int64(42), row.MustInt64())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, "test", row.MustString())
+}
