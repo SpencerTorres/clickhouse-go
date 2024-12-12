@@ -479,7 +479,6 @@ func (c *ColJSON) encodeObjectHeader(buffer *proto.Buffer) {
 
 	// TODO: write typed path headers (low cardinality only?)
 
-	// TODO: alphabetically sort dynamic paths for encoding!!!
 	for _, col := range c.dynamicColumns {
 		col.encodeHeader(buffer)
 	}
@@ -543,24 +542,18 @@ func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
 
 	c.dynamicPaths = make([]string, 0, totalDynamicPaths)
 	for i := 0; i < int(totalDynamicPaths); i++ {
-		strLen, err := reader.StrLen()
+		dynamicPath, err := reader.Str()
 		if err != nil {
-			return fmt.Errorf("failed to read current dynamic path name length at index %d for json column: %w", i, err)
+			return fmt.Errorf("failed to read dynamic path name bytes at index %d for json column: %w", i, err)
 		}
 
-		strBytes, err := reader.ReadRaw(strLen)
-		if err != nil {
-			return fmt.Errorf("failed to read current dynamic path name bytes at index %d for json column: %w", i, err)
-		}
-
-		dynamicPath := string(strBytes)
 		c.dynamicPaths = append(c.dynamicPaths, dynamicPath)
 		c.dynamicPathsIndex[dynamicPath] = len(c.dynamicPaths) - 1
 	}
 
-	for range c.typedPaths {
-		// TODO: read typed path prefix (low cardinality only?)
-	}
+	// TODO: read typed path prefix (low cardinality only?)
+	//for range c.typedPaths {
+	//}
 
 	c.dynamicColumns = make([]*ColDynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {

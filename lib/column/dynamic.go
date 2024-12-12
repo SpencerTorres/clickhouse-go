@@ -291,17 +291,12 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 	c.typeNames = make([]string, 0, totalTypes+1)
 	c.variant.columns = make([]Interface, 0, totalTypes+1)
 	for i := uint8(0); i < c.totalTypes; i++ {
-		strLen, err := reader.StrLen()
+		typeName, err := reader.Str()
 		if err != nil {
-			return fmt.Errorf("failed to read current type name length at index %d for dynamic column: %w", i, err)
+			return fmt.Errorf("failed to read type name at index %d for dynamic column: %w", i, err)
 		}
 
-		strBytes, err := reader.ReadRaw(strLen)
-		if err != nil {
-			return fmt.Errorf("failed to read current type name bytes at index %d for dynamic column: %w", i, err)
-		}
-
-		c.typeNames = append(c.typeNames, string(strBytes))
+		c.typeNames = append(c.typeNames, typeName)
 	}
 
 	c.typeNames = append(c.typeNames, "SharedVariant")
