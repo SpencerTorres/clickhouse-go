@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -147,6 +148,7 @@ func TestString(t *testing.T) {
 		    , Col9 String
 		    , Col10 Nullable(String)
 			, Col11 Nullable(String)
+			, Col12 String
 		) Engine MergeTree() ORDER BY tuple()
 	`
 	defer func() {
@@ -161,6 +163,7 @@ func TestString(t *testing.T) {
 	col9Data := &testStr{"E"}
 	var col10Data testStr
 	col11Data := "G"
+	col12Data := json.RawMessage("{\"x\": 1}")
 	require.NoError(t, batch.Append(
 		"A",
 		[]string{"A", "B", "C"},
@@ -173,6 +176,7 @@ func TestString(t *testing.T) {
 		col9Data,
 		&col10Data,
 		&col11Data,
+		&col12Data,
 	))
 	require.Equal(t, 1, batch.Rows())
 	require.NoError(t, batch.Send())
@@ -188,8 +192,9 @@ func TestString(t *testing.T) {
 		col9  string
 		col10 string
 		col11 string
+		col12 json.RawMessage
 	)
-	require.NoError(t, conn.QueryRow(ctx, "SELECT * FROM test_string").Scan(&col1, &col2, &col3, &col4, &col5, &col6, &col7, &col8, &col9, &col10, &col11))
+	require.NoError(t, conn.QueryRow(ctx, "SELECT * FROM test_string").Scan(&col1, &col2, &col3, &col4, &col5, &col6, &col7, &col8, &col9, &col10, &col11, &col12))
 	require.Nil(t, col3)
 	assert.Equal(t, "A", col1)
 	assert.Equal(t, []string{"A", "B", "C"}, col2)
@@ -201,6 +206,7 @@ func TestString(t *testing.T) {
 	assert.Equal(t, col9, col9Data.String())
 	assert.Equal(t, col10, col10Data.String())
 	assert.Equal(t, "G", col11)
+	assert.Equal(t, json.RawMessage("{\"x\": 1}"), col12)
 }
 
 func BenchmarkString(b *testing.B) {
