@@ -99,7 +99,7 @@ func TestDynamicInference(t *testing.T) {
 	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_dynamic (c)")
 	require.NoError(t, err)
 	require.NoError(t, batch.Append(true))
-	require.NoError(t, batch.Append(42))
+	require.NoError(t, batch.Append(int64(42)))
 	require.NoError(t, batch.Append("test"))
 	require.NoError(t, batch.Send())
 
