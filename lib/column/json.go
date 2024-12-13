@@ -413,10 +413,10 @@ func (c *ColJSON) appendRowObject(v any) error {
 
 	// Match typed paths first
 	for i, typedPath := range c.typedPaths {
-		value, ok := obj.ValueAtPath(typedPath)
-		if !ok {
-			continue
-		}
+		// Even if value is nil, we must append a value for this row.
+		// nil is a valid value for most column types, with most implementations putting a zero value.
+		// If the column doesn't support appending nil, then the user must provide a zero value.
+		value, _ := obj.ValueAtPath(typedPath)
 
 		col := c.typedColumns[i]
 		err := col.AppendRow(value)
@@ -425,8 +425,16 @@ func (c *ColJSON) appendRowObject(v any) error {
 		}
 	}
 
-	// Match or add dynamic paths
 	valuesByPath := obj.ValuesByPath()
+
+	// Verify all dynamic paths have an equal number of rows by appending nil for all unspecified dynamic paths
+	for _, dynamicPath := range c.dynamicPaths {
+		if _, ok := valuesByPath[dynamicPath]; !ok {
+			valuesByPath[dynamicPath] = nil
+		}
+	}
+
+	// Match or add dynamic paths
 	for objPath, value := range valuesByPath {
 		if c.hasTypedPath(objPath) || c.hasSkipPath(objPath) {
 			continue
@@ -438,9 +446,17 @@ func (c *ColJSON) appendRowObject(v any) error {
 				return fmt.Errorf("failed to append to json column at dynamic path \"%s\": %w", objPath, err)
 			}
 		} else {
-			// Add new dynamic path + column
+			// Path doesn't exist, add new dynamic path + column
 			parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
 			colDynamic := parsedColDynamic.(*ColDynamic)
+
+			// New path must back-fill nils for each row
+			for i := 0; i < c.rows; i++ {
+				err := colDynamic.AppendRow(nil)
+				if err != nil {
+					return fmt.Errorf("failed to back-fill json column at new dynamic path \"%s\" index %d: %w", objPath, i, err)
+				}
+			}
 
 			err := colDynamic.AppendRow(value)
 			if err != nil {

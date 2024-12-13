@@ -181,6 +181,20 @@ func TestJSONStruct(t *testing.T) {
 		DynamicMap:    chcol.NewDynamic(map[string]string{"a": "a", "b": "b"}).WithType("Map(String, String)"),
 	}
 	require.NoError(t, batch.Append(inputRow))
+	inputRow = TestStruct{
+		KeysNumbers: map[string]int64{},
+		Metadata: map[string]interface{}{
+			"FieldA": "a",
+			"FieldB": "b",
+			"FieldC": map[string]interface{}{
+				"FieldD": "d",
+			},
+			"FieldE": map[string]interface{}{
+				"FieldF": "f",
+			},
+		},
+	}
+	require.NoError(t, batch.Append(inputRow))
 
 	require.NoError(t, batch.Send())
 
@@ -191,6 +205,12 @@ func TestJSONStruct(t *testing.T) {
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
+	require.NoError(t, err)
+
+	var row2 TestStruct
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row2)
 	require.NoError(t, err)
 }
 
