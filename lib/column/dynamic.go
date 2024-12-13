@@ -157,14 +157,16 @@ func (c *ColDynamic) AppendRow(v any) error {
 		c.variant.appendNullRow()
 		return nil
 	case chcol.DynamicWithType:
-		requestedType = v.(chcol.DynamicWithType).Type()
-		if v.(chcol.DynamicWithType).Nil() {
+		dyn := v.(chcol.DynamicWithType)
+		requestedType = dyn.Type()
+		if dyn.Nil() {
 			c.variant.appendNullRow()
 			return nil
 		}
 	case *chcol.DynamicWithType:
-		requestedType = v.(*chcol.DynamicWithType).Type()
-		if v.(*chcol.DynamicWithType).Nil() {
+		dyn := v.(*chcol.DynamicWithType)
+		requestedType = dyn.Type()
+		if dyn.Nil() {
 			c.variant.appendNullRow()
 			return nil
 		}

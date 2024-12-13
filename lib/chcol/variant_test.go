@@ -52,9 +52,14 @@ func TestVariant_TypeSwitch(t *testing.T) {
 
 	v := NewVariant(in)
 
-	if i, ok := v.Int64(); ok {
-		t.Fatalf("unexpected int64 value from variant: %d", i)
-	} else if s, ok := v.String(); ok {
-		t.Fatalf("unexpected string value from variant: %s", s)
+	switch v.Any().(type) {
+	case int64:
+		t.Fatalf("unexpected int64 value from variant")
+	case string:
+		t.Fatalf("unexpected string value from variant")
+	case nil:
+		break
+	default:
+		t.Fatalf("expected nil value from variant")
 	}
 }

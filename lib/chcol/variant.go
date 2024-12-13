@@ -19,7 +19,6 @@ package chcol
 
 import (
 	"database/sql/driver"
-	"fmt"
 )
 
 // Variant represents a ClickHouse Variant type that can hold multiple possible types
@@ -33,22 +32,22 @@ func NewVariant(v any) Variant {
 }
 
 // Nil returns true if the underlying value is nil.
-func (v Variant) Nil() bool {
+func (v *Variant) Nil() bool {
 	return v.value == nil
 }
 
 // Any returns the underlying value as any. Same as Interface.
-func (v Variant) Any() any {
+func (v *Variant) Any() any {
 	return v.value
 }
 
 // Interface returns the underlying value as interface{}. Same as Any.
-func (v Variant) Interface() interface{} {
+func (v *Variant) Interface() interface{} {
 	return v.value
 }
 
 // Int returns the value as an int if possible
-func (v Variant) Int() (int, bool) {
+func (v *Variant) Int() (int, bool) {
 	if i, ok := v.value.(int); ok {
 		return i, true
 	}
@@ -57,7 +56,7 @@ func (v Variant) Int() (int, bool) {
 }
 
 // Int64 returns the value as an int64 if possible
-func (v Variant) Int64() (int64, bool) {
+func (v *Variant) Int64() (int64, bool) {
 	if i, ok := v.value.(int64); ok {
 		return i, true
 	}
@@ -66,7 +65,7 @@ func (v Variant) Int64() (int64, bool) {
 }
 
 // String returns the value as a string if possible
-func (v Variant) String() (string, bool) {
+func (v *Variant) String() (string, bool) {
 	if s, ok := v.value.(string); ok {
 		return s, true
 	}
@@ -75,52 +74,12 @@ func (v Variant) String() (string, bool) {
 }
 
 // Bool returns the value as an bool if possible
-func (v Variant) Bool() (bool, bool) {
+func (v *Variant) Bool() (bool, bool) {
 	if b, ok := v.value.(bool); ok {
 		return b, true
 	}
 
 	return false, false
-}
-
-// MustInt returns the bool value or panics if not possible
-func (v Variant) MustInt() int {
-	i, ok := v.Int()
-	if !ok {
-		panic(fmt.Sprintf("variant value %v is not an int", v.value))
-	}
-
-	return i
-}
-
-// MustInt64 returns the bool value or panics if not possible
-func (v Variant) MustInt64() int64 {
-	i, ok := v.Int64()
-	if !ok {
-		panic(fmt.Sprintf("variant value %v is not an int64", v.value))
-	}
-
-	return i
-}
-
-// MustString returns the string value or panics if not possible
-func (v Variant) MustString() string {
-	s, ok := v.String()
-	if !ok {
-		panic(fmt.Sprintf("variant value %v is not a string", v.value))
-	}
-
-	return s
-}
-
-// MustBool returns the bool value or panics if not possible
-func (v Variant) MustBool() bool {
-	b, ok := v.Bool()
-	if !ok {
-		panic(fmt.Sprintf("variant value %v is not a bool", v.value))
-	}
-
-	return b
 }
 
 // Scan implements the sql.Scanner interface
@@ -130,23 +89,24 @@ func (v *Variant) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface
-func (v Variant) Value() (driver.Value, error) {
+func (v *Variant) Value() (driver.Value, error) {
 	return v.value, nil
 }
 
-func (v Variant) WithType(chType string) VariantWithType {
+func (v *Variant) WithType(chType string) VariantWithType {
 	return VariantWithType{
-		Variant: v,
+		Variant: *v,
 		chType:  chType,
 	}
 }
 
+// VariantWithType is Variant with an extra value for specifying the preferred ClickHouse type for column encoding
 type VariantWithType struct {
 	Variant
 	chType string
 }
 
-// NewVariantWithType creates a new Variant with the given value and encoding type
+// NewVariantWithType creates a new Variant with the given value and ClickHouse type
 func NewVariantWithType(v any, chType string) VariantWithType {
 	return VariantWithType{
 		Variant: Variant{value: v},
@@ -155,6 +115,6 @@ func NewVariantWithType(v any, chType string) VariantWithType {
 }
 
 // Type returns the ClickHouse type as a string.
-func (v VariantWithType) Type() string {
+func (v *VariantWithType) Type() string {
 	return v.chType
 }

@@ -1,6 +1,9 @@
 package chcol
 
-import "database/sql/driver"
+import (
+	"database/sql/driver"
+	"fmt"
+)
 
 // JSON represents a ClickHouse JSON type that can hold multiple possible types
 type JSON struct {
@@ -19,7 +22,6 @@ func (o *JSON) ValuesByPath() map[string]any {
 }
 
 func (o *JSON) SetValueAtPath(path string, value any) {
-	// TODO: validate path is valid format, else return error
 	o.valuesByPath[path] = value
 }
 
@@ -29,11 +31,17 @@ func (o *JSON) ValueAtPath(path string) (any, bool) {
 }
 
 // Scan implements the sql.Scanner interface
-func (v *JSON) Scan(value interface{}) error {
+func (o *JSON) Scan(value interface{}) error {
+	valuesByPath, ok := value.(map[string]any)
+	if !ok {
+		return fmt.Errorf("JSON Scan value must be map[string]any")
+	}
+
+	o.valuesByPath = valuesByPath
 	return nil
 }
 
 // Value implements the driver.Valuer interface
-func (o JSON) Value() (driver.Value, error) {
-	return nil, nil
+func (o *JSON) Value() (driver.Value, error) {
+	return o.valuesByPath, nil
 }

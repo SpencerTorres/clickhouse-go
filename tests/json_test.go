@@ -187,7 +187,7 @@ func TestJSONStruct(t *testing.T) {
 			"FieldA": "a",
 			"FieldB": "b",
 			"FieldC": map[string]interface{}{
-				"FieldD": "d",
+				"FieldD": int64(5),
 			},
 			"FieldE": map[string]interface{}{
 				"FieldF": "f",

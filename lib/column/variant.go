@@ -178,14 +178,16 @@ func (c *ColVariant) AppendRow(v any) error {
 		c.appendNullRow()
 		return nil
 	case chcol.VariantWithType:
-		requestedType = v.(chcol.VariantWithType).Type()
-		if v.(chcol.VariantWithType).Nil() {
+		vt := v.(chcol.VariantWithType)
+		requestedType = vt.Type()
+		if vt.Nil() {
 			c.appendNullRow()
 			return nil
 		}
 	case *chcol.VariantWithType:
-		requestedType = v.(*chcol.VariantWithType).Type()
-		if v.(*chcol.VariantWithType).Nil() {
+		vt := v.(*chcol.VariantWithType)
+		requestedType = vt.Type()
+		if vt.Nil() {
 			c.appendNullRow()
 			return nil
 		}
