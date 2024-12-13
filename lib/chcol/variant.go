@@ -32,22 +32,22 @@ func NewVariant(v any) Variant {
 }
 
 // Nil returns true if the underlying value is nil.
-func (v *Variant) Nil() bool {
+func (v Variant) Nil() bool {
 	return v.value == nil
 }
 
 // Any returns the underlying value as any. Same as Interface.
-func (v *Variant) Any() any {
+func (v Variant) Any() any {
 	return v.value
 }
 
 // Interface returns the underlying value as interface{}. Same as Any.
-func (v *Variant) Interface() interface{} {
+func (v Variant) Interface() interface{} {
 	return v.value
 }
 
 // Int returns the value as an int if possible
-func (v *Variant) Int() (int, bool) {
+func (v Variant) Int() (int, bool) {
 	if i, ok := v.value.(int); ok {
 		return i, true
 	}
@@ -56,7 +56,7 @@ func (v *Variant) Int() (int, bool) {
 }
 
 // Int64 returns the value as an int64 if possible
-func (v *Variant) Int64() (int64, bool) {
+func (v Variant) Int64() (int64, bool) {
 	if i, ok := v.value.(int64); ok {
 		return i, true
 	}
@@ -65,7 +65,7 @@ func (v *Variant) Int64() (int64, bool) {
 }
 
 // String returns the value as a string if possible
-func (v *Variant) String() (string, bool) {
+func (v Variant) String() (string, bool) {
 	if s, ok := v.value.(string); ok {
 		return s, true
 	}
@@ -74,7 +74,7 @@ func (v *Variant) String() (string, bool) {
 }
 
 // Bool returns the value as an bool if possible
-func (v *Variant) Bool() (bool, bool) {
+func (v Variant) Bool() (bool, bool) {
 	if b, ok := v.value.(bool); ok {
 		return b, true
 	}
@@ -89,13 +89,13 @@ func (v *Variant) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface
-func (v *Variant) Value() (driver.Value, error) {
+func (v Variant) Value() (driver.Value, error) {
 	return v.value, nil
 }
 
-func (v *Variant) WithType(chType string) VariantWithType {
+func (v Variant) WithType(chType string) VariantWithType {
 	return VariantWithType{
-		Variant: *v,
+		Variant: v,
 		chType:  chType,
 	}
 }
@@ -115,6 +115,6 @@ func NewVariantWithType(v any, chType string) VariantWithType {
 }
 
 // Type returns the ClickHouse type as a string.
-func (v *VariantWithType) Type() string {
+func (v VariantWithType) Type() string {
 	return v.chType
 }
