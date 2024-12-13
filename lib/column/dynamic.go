@@ -46,7 +46,7 @@ type ColDynamic struct {
 	variant ColVariant
 }
 
-func (c *ColDynamic) parse(t Type, tz *time.Location) (_ Interface, err error) {
+func (c *ColDynamic) parse(t Type, tz *time.Location) (_ *ColDynamic, err error) {
 	c.chType = t
 	c.tz = tz
 	tStr := string(t)

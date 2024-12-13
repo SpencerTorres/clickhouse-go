@@ -179,7 +179,7 @@ func splitWithDelimiters(s string) []string {
 	return parts
 }
 
-func (c *ColJSON) parse(t Type, tz *time.Location) (_ Interface, err error) {
+func (c *ColJSON) parse(t Type, tz *time.Location) (_ *ColJSON, err error) {
 	c.chType = t
 	c.tz = tz
 	tStr := string(t)

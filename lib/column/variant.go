@@ -42,7 +42,7 @@ type ColVariant struct {
 	columnTypeIndex map[string]uint8
 }
 
-func (c *ColVariant) parse(t Type, tz *time.Location) (_ Interface, err error) {
+func (c *ColVariant) parse(t Type, tz *time.Location) (_ *ColVariant, err error) {
 	c.chType = t
 	var (
 		element       []rune
@@ -105,8 +105,8 @@ func (c *ColVariant) addColumn(col Interface) {
 }
 
 func (c *ColVariant) appendNullRow() {
-	c.rows++
 	c.discriminators = append(c.discriminators, NullVariantDiscriminator)
+	c.rows++
 }
 
 func (c *ColVariant) Name() string {
