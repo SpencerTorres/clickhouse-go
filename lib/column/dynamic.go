@@ -230,6 +230,10 @@ func (c *ColDynamic) sortColumnsForEncoding() {
 	}
 
 	for i := range c.variant.discriminators {
+		if c.variant.discriminators[i] == NullVariantDiscriminator {
+			continue
+		}
+
 		c.variant.discriminators[i] = nextDiscriminators[c.variant.discriminators[i]]
 	}
 
