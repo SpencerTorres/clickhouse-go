@@ -104,6 +104,11 @@ func (c *ColVariant) addColumn(col Interface) {
 	c.columnTypeIndex[string(col.Type())] = uint8(len(c.columns) - 1)
 }
 
+func (c *ColVariant) appendNullRow() {
+	c.rows++
+	c.discriminators = append(c.discriminators, NullVariantDiscriminator)
+}
+
 func (c *ColVariant) Name() string {
 	return c.name
 }
@@ -129,8 +134,10 @@ func (c *ColVariant) ScanRow(dest any, row int) error {
 	typeIndex := c.discriminators[row]
 	offsetIndex := c.offsets[row]
 	var value any
+	var chType string
 	if typeIndex != NullVariantDiscriminator {
 		value = c.columns[typeIndex].Row(offsetIndex, false)
+		chType = string(c.columns[typeIndex].Type())
 	}
 
 	switch v := dest.(type) {
@@ -141,10 +148,10 @@ func (c *ColVariant) ScanRow(dest any, row int) error {
 		vt := chcol.NewVariant(value)
 		**v = vt
 	case *chcol.VariantWithType:
-		vt := chcol.NewVariantWithType(value, string(c.columns[typeIndex].Type()))
+		vt := chcol.NewVariantWithType(value, chType)
 		*v = vt
 	case **chcol.VariantWithType:
-		vt := chcol.NewVariantWithType(value, string(c.columns[typeIndex].Type()))
+		vt := chcol.NewVariantWithType(value, chType)
 		**v = vt
 	default:
 		if typeIndex == NullVariantDiscriminator {
@@ -168,13 +175,20 @@ func (c *ColVariant) AppendRow(v any) error {
 	var requestedType string
 	switch v.(type) {
 	case nil:
-		c.rows++
-		c.discriminators = append(c.discriminators, NullVariantDiscriminator)
+		c.appendNullRow()
 		return nil
 	case chcol.VariantWithType:
 		requestedType = v.(chcol.VariantWithType).Type()
+		if v.(chcol.VariantWithType).Nil() {
+			c.appendNullRow()
+			return nil
+		}
 	case *chcol.VariantWithType:
 		requestedType = v.(*chcol.VariantWithType).Type()
+		if v.(*chcol.VariantWithType).Nil() {
+			c.appendNullRow()
+			return nil
+		}
 	}
 
 	if requestedType != "" {

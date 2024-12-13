@@ -32,6 +32,11 @@ func NewVariant(v any) Variant {
 	return Variant{value: v}
 }
 
+// Nil returns true if the underlying value is nil.
+func (v Variant) Nil() bool {
+	return v.value == nil
+}
+
 // Any returns the underlying value as any. Same as Interface.
 func (v Variant) Any() any {
 	return v.value

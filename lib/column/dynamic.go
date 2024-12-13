@@ -113,8 +113,10 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 	typeIndex := c.variant.discriminators[row]
 	offsetIndex := c.variant.offsets[row]
 	var value any
+	var chType string
 	if typeIndex != NullVariantDiscriminator {
 		value = c.variant.columns[typeIndex].Row(offsetIndex, false)
+		chType = string(c.variant.columns[typeIndex].Type())
 	}
 
 	switch v := dest.(type) {
@@ -125,10 +127,10 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 		vt := chcol.NewDynamic(value)
 		**v = vt
 	case *chcol.DynamicWithType:
-		vt := chcol.NewDynamicWithType(value, string(c.variant.columns[typeIndex].Type()))
+		vt := chcol.NewDynamicWithType(value, chType)
 		*v = vt
 	case **chcol.DynamicWithType:
-		vt := chcol.NewDynamicWithType(value, string(c.variant.columns[typeIndex].Type()))
+		vt := chcol.NewDynamicWithType(value, chType)
 		**v = vt
 	default:
 		if typeIndex == NullVariantDiscriminator {
@@ -152,13 +154,20 @@ func (c *ColDynamic) AppendRow(v any) error {
 	var requestedType string
 	switch v.(type) {
 	case nil:
-		c.variant.rows++
-		c.variant.discriminators = append(c.variant.discriminators, NullVariantDiscriminator)
+		c.variant.appendNullRow()
 		return nil
 	case chcol.DynamicWithType:
 		requestedType = v.(chcol.DynamicWithType).Type()
+		if v.(chcol.DynamicWithType).Nil() {
+			c.variant.appendNullRow()
+			return nil
+		}
 	case *chcol.DynamicWithType:
 		requestedType = v.(*chcol.DynamicWithType).Type()
+		if v.(*chcol.DynamicWithType).Nil() {
+			c.variant.appendNullRow()
+			return nil
+		}
 	}
 
 	if requestedType != "" {
