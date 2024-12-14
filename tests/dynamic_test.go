@@ -19,26 +19,41 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
+
+var dynamicTestDate, _ = time.Parse(time.RFC3339, "2024-12-13T02:09:30.123Z")
+
+func setupDynamicTest(t *testing.T) driver.Conn {
+	conn, err := GetNativeConnection(clickhouse.Settings{
+		"max_execution_time":              60,
+		"allow_experimental_dynamic_type": true,
+	}, nil, &clickhouse.Compression{
+		Method: clickhouse.CompressionLZ4,
+	})
+	require.NoError(t, err)
+
+	if !CheckMinServerServerVersion(conn, 24, 1, 0) {
+		t.Skip(fmt.Errorf("unsupported clickhouse version for Dynamic type"))
+		return nil
+	}
+
+	return conn
+}
 
 func TestDynamic(t *testing.T) {
 	ctx := context.Background()
-
-	conn, err := GetNativeConnection(clickhouse.Settings{
-		"max_execution_time":              60,
-		"allow_experimental_dynamic_type": true,
-	}, nil, &clickhouse.Compression{
-		Method: clickhouse.CompressionLZ4,
-	})
-	require.NoError(t, err)
+	conn := setupDynamicTest(t)
 
 	const ddl = `
 			CREATE TABLE IF NOT EXISTS test_dynamic (
-				  c Dynamic(max_types=3)
+				  c Dynamic                  
 			) Engine = MergeTree() ORDER BY tuple()
 		`
 	require.NoError(t, conn.Exec(ctx, ddl))
@@ -48,9 +63,23 @@ func TestDynamic(t *testing.T) {
 
 	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_dynamic (c)")
 	require.NoError(t, err)
-	require.NoError(t, batch.Append(chcol.NewDynamic(true).WithType("Bool")))
-	require.NoError(t, batch.Append(chcol.NewDynamic(42).WithType("Int64")))
-	require.NoError(t, batch.Append(chcol.NewDynamicWithType("test", "String")))
+
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(true, "Bool")))
+	colInt64 := int64(42)
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colInt64, "Int64")))
+	colString := "test"
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colString, "String")))
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(dynamicTestDate, "DateTime64(3)")))
+	var colNil any = nil
+	require.NoError(t, batch.Append(colNil))
+	colSliceUInt8 := []uint8{0xA, 0xB, 0xC}
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colSliceUInt8, "Array(UInt8)")))
+	colSliceMapStringString := []map[string]string{{"key1": "value1", "key2": "value2"}, {"key3": "value3"}}
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colSliceMapStringString, "Array(Map(String, String))")))
+	colMapStringString := map[string]string{"key1": "value1", "key2": "value2"}
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colMapStringString, "Map(String, String)")))
+	colMapStringInt64 := map[string]int64{"key1": 42, "key2": 84}
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(colMapStringInt64, "Map(String, Int64)")))
 	require.NoError(t, batch.Send())
 
 	rows, err := conn.Query(ctx, "SELECT c FROM test_dynamic")
@@ -61,34 +90,56 @@ func TestDynamic(t *testing.T) {
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, true, row.MustBool())
+	require.Equal(t, true, row.Any())
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, int64(42), row.MustInt64())
+	require.Equal(t, colInt64, row.Any())
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, "test", row.MustString())
+	require.Equal(t, colString, row.Any())
 
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, dynamicTestDate, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colNil, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colSliceUInt8, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colSliceMapStringString, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colMapStringString, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colMapStringInt64, row.Any())
 }
 
-func TestDynamicInference(t *testing.T) {
+func TestDynamic_ScanWithType(t *testing.T) {
 	ctx := context.Background()
-
-	conn, err := GetNativeConnection(clickhouse.Settings{
-		"max_execution_time":              60,
-		"allow_experimental_dynamic_type": true,
-	}, nil, &clickhouse.Compression{
-		Method: clickhouse.CompressionLZ4,
-	})
-	require.NoError(t, err)
+	conn := setupDynamicTest(t)
 
 	const ddl = `
 			CREATE TABLE IF NOT EXISTS test_dynamic (
-				  c Dynamic
+				  c Dynamic                 
 			) Engine = MergeTree() ORDER BY tuple()
 		`
 	require.NoError(t, conn.Exec(ctx, ddl))
@@ -98,28 +149,32 @@ func TestDynamicInference(t *testing.T) {
 
 	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_dynamic (c)")
 	require.NoError(t, err)
-	require.NoError(t, batch.Append(true))
-	require.NoError(t, batch.Append(int64(42)))
-	require.NoError(t, batch.Append("test"))
+
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(true, "Bool")))
+	require.NoError(t, batch.Append(clickhouse.NewDynamicWithType(int64(42), "Int64")))
+	require.NoError(t, batch.Append(nil))
 	require.NoError(t, batch.Send())
 
 	rows, err := conn.Query(ctx, "SELECT c FROM test_dynamic")
 	require.NoError(t, err)
 
-	var row chcol.Dynamic
+	var row chcol.DynamicWithType
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, true, row.MustBool())
+	require.Equal(t, true, row.Any())
+	require.Equal(t, "Bool", row.Type())
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, int64(42), row.MustInt64())
+	require.Equal(t, int64(42), row.Any())
+	require.Equal(t, "Int64", row.Type())
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
 	require.NoError(t, err)
-	require.Equal(t, "test", row.MustString())
+	require.Equal(t, nil, row.Any())
+	require.Equal(t, "", row.Type())
 }

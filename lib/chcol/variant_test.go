@@ -21,6 +21,14 @@ import (
 	"testing"
 )
 
+func TestVariant_Nil(t *testing.T) {
+	v := NewVariant(nil)
+
+	if !v.Nil() {
+		t.Fatalf("expected variant to be nil")
+	}
+}
+
 func TestVariant_Int64(t *testing.T) {
 	var in int64 = 42
 
