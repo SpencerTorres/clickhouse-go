@@ -79,7 +79,6 @@ func TestColVariant_appendDiscriminatorRow(t *testing.T) {
 
 	require.Equal(t, 1, len(col.discriminators))
 	require.Equal(t, discriminator, col.discriminators[0])
-	require.Equal(t, 1, col.rows)
 }
 
 func TestColVariant_appendNullRow(t *testing.T) {
@@ -89,5 +88,4 @@ func TestColVariant_appendNullRow(t *testing.T) {
 
 	require.Equal(t, 1, len(col.discriminators))
 	require.Equal(t, NullVariantDiscriminator, col.discriminators[0])
-	require.Equal(t, 1, col.rows)
 }

@@ -97,7 +97,7 @@ func (c *ColDynamic) Type() Type {
 }
 
 func (c *ColDynamic) Rows() int {
-	return c.variant.rows
+	return c.variant.Rows()
 }
 
 func (c *ColDynamic) Row(i int, ptr bool) any {

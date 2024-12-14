@@ -273,13 +273,6 @@ func (c *ColJSON) Type() Type {
 }
 
 func (c *ColJSON) Rows() int {
-	//if len(c.typedColumns) > 0 {
-	//	return c.typedColumns[0].Rows()
-	//} else if len(c.dynamicColumns) > 0 {
-	//	return c.dynamicColumns[0].Rows()
-	//}
-	//
-	//return 0
 	return c.rows
 }
 
@@ -481,7 +474,6 @@ func (c *ColJSON) appendRowString(v any) error {
 	}
 
 	c.rows++
-
 	return nil
 }
 

@@ -33,7 +33,6 @@ const NullVariantDiscriminator uint8 = 255
 type ColVariant struct {
 	chType Type
 	name   string
-	rows   int
 
 	discriminators []uint8
 	offsets        []int
@@ -106,7 +105,6 @@ func (c *ColVariant) addColumn(col Interface) {
 
 func (c *ColVariant) appendDiscriminatorRow(d uint8) {
 	c.discriminators = append(c.discriminators, d)
-	c.rows++
 }
 
 func (c *ColVariant) appendNullRow() {
@@ -122,7 +120,7 @@ func (c *ColVariant) Type() Type {
 }
 
 func (c *ColVariant) Rows() int {
-	return c.rows
+	return len(c.discriminators)
 }
 
 func (c *ColVariant) Row(i int, ptr bool) any {
@@ -245,7 +243,6 @@ func (c *ColVariant) ScanType() reflect.Type {
 }
 
 func (c *ColVariant) Reset() {
-	c.rows = 0
 	c.discriminators = c.discriminators[:0]
 
 	for _, col := range c.columns {
@@ -265,13 +262,11 @@ func (c *ColVariant) decodeHeader(reader *proto.Reader) error {
 }
 
 func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
-	c.rows = rows
-
-	c.discriminators = make([]uint8, c.rows)
-	c.offsets = make([]int, c.rows)
+	c.discriminators = make([]uint8, rows)
+	c.offsets = make([]int, rows)
 	rowCountByType := make(map[uint8]int, len(c.columns))
 
-	for i := 0; i < c.rows; i++ {
+	for i := 0; i < rows; i++ {
 		disc, err := reader.ReadByte()
 		if err != nil {
 			return fmt.Errorf("failed to read discriminator at index %d: %w", i, err)
