@@ -282,8 +282,7 @@ func (c *ColDynamic) ScanType() reflect.Type {
 }
 
 func (c *ColDynamic) Reset() {
-	//TODO implement me
-	panic("implement me")
+	c.variant.Reset()
 }
 
 func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {

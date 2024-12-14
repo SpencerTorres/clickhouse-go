@@ -245,8 +245,12 @@ func (c *ColVariant) ScanType() reflect.Type {
 }
 
 func (c *ColVariant) Reset() {
-	//TODO implement me
-	panic("implement me")
+	c.rows = 0
+	c.discriminators = c.discriminators[:0]
+
+	for _, col := range c.columns {
+		col.Reset()
+	}
 }
 
 func (c *ColVariant) decodeHeader(reader *proto.Reader) error {

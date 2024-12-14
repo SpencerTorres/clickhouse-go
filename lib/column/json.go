@@ -539,8 +539,23 @@ func (c *ColJSON) ScanType() reflect.Type {
 }
 
 func (c *ColJSON) Reset() {
-	//TODO implement me
-	panic("implement me")
+	c.rows = 0
+
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		for _, col := range c.typedColumns {
+			col.Reset()
+		}
+
+		for _, col := range c.dynamicColumns {
+			col.Reset()
+		}
+
+		return
+	case JSONStringSerializationVersion:
+		c.jsonStrings.Reset()
+		return
+	}
 }
 
 func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
