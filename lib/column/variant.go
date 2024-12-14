@@ -104,9 +104,13 @@ func (c *ColVariant) addColumn(col Interface) {
 	c.columnTypeIndex[string(col.Type())] = uint8(len(c.columns) - 1)
 }
 
-func (c *ColVariant) appendNullRow() {
-	c.discriminators = append(c.discriminators, NullVariantDiscriminator)
+func (c *ColVariant) appendDiscriminatorRow(d uint8) {
+	c.discriminators = append(c.discriminators, d)
 	c.rows++
+}
+
+func (c *ColVariant) appendNullRow() {
+	c.appendDiscriminatorRow(NullVariantDiscriminator)
 }
 
 func (c *ColVariant) Name() string {
@@ -203,8 +207,7 @@ func (c *ColVariant) AppendRow(v any) error {
 			return fmt.Errorf("failed to append row to variant column with requested type %s: %w", requestedType, err)
 		}
 
-		c.rows++
-		c.discriminators = append(c.discriminators, typeIndex)
+		c.appendDiscriminatorRow(typeIndex)
 		return nil
 	}
 
@@ -212,8 +215,7 @@ func (c *ColVariant) AppendRow(v any) error {
 	var err error
 	for i, col := range c.columns {
 		if err = col.AppendRow(v); err == nil {
-			c.rows++
-			c.discriminators = append(c.discriminators, uint8(i))
+			c.appendDiscriminatorRow(uint8(i))
 			return nil
 		}
 	}

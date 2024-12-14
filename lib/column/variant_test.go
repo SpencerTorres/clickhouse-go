@@ -71,6 +71,17 @@ func TestColVariant_addColumn(t *testing.T) {
 	require.Equal(t, uint8(0), col.columnTypeIndex["Int64"])
 }
 
+func TestColVariant_appendDiscriminatorRow(t *testing.T) {
+	col := ColVariant{}
+	var discriminator uint8 = 8
+
+	col.appendDiscriminatorRow(discriminator)
+
+	require.Equal(t, 1, len(col.discriminators))
+	require.Equal(t, discriminator, col.discriminators[0])
+	require.Equal(t, 1, col.rows)
+}
+
 func TestColVariant_appendNullRow(t *testing.T) {
 	col := ColVariant{}
 

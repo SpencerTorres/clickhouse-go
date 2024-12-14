@@ -193,8 +193,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 			return fmt.Errorf("value \"%v\" cannot be stored in dynamic column %s with requested type %s: %w", v, c.chType, requestedType, err)
 		}
 
-		c.variant.rows++
-		c.variant.discriminators = append(c.variant.discriminators, uint8(colIndex))
+		c.variant.appendDiscriminatorRow(uint8(colIndex))
 		return nil
 	}
 
@@ -205,8 +204,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 		}
 
 		if err := col.AppendRow(v); err == nil {
-			c.variant.rows++
-			c.variant.discriminators = append(c.variant.discriminators, uint8(i))
+			c.variant.appendDiscriminatorRow(uint8(i))
 			return nil
 		}
 	}
