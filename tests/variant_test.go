@@ -187,3 +187,53 @@ func TestVariant_ScanWithType(t *testing.T) {
 	require.Equal(t, nil, row.Any())
 	require.Equal(t, "", row.Type())
 }
+
+func TestVariant_BatchFlush(t *testing.T) {
+	ctx := context.Background()
+	conn := setupVariantTest(t)
+
+	const ddl = `
+			CREATE TABLE IF NOT EXISTS test_variant (
+				  c Variant(Bool, Int64)                  
+			) Engine = MergeTree() ORDER BY tuple()
+		`
+	require.NoError(t, conn.Exec(ctx, ddl))
+	defer func() {
+		require.NoError(t, conn.Exec(ctx, "DROP TABLE IF EXISTS test_variant"))
+	}()
+
+	batch, err := conn.PrepareBatch(ctx, "INSERT INTO test_variant (c)")
+	require.NoError(t, err)
+
+	vals := make([]clickhouse.VariantWithType, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		if i%2 == 0 {
+			vals = append(vals, clickhouse.NewVariantWithType(int64(i), "Int64"))
+		} else {
+			vals = append(vals, clickhouse.NewVariantWithType(i%5 == 0, "Bool"))
+		}
+
+		require.NoError(t, batch.Append(vals[i]))
+		require.NoError(t, batch.Flush())
+	}
+	require.NoError(t, batch.Send())
+
+	rows, err := conn.Query(ctx, "SELECT c FROM test_variant")
+	require.NoError(t, err)
+
+	i := 0
+	for rows.Next() {
+		var row chcol.VariantWithType
+		err = rows.Scan(&row)
+
+		if i%2 == 0 {
+			require.Equal(t, int64(i), row.Any())
+			require.Equal(t, "Int64", row.Type())
+		} else {
+			require.Equal(t, i%5 == 0, row.Any())
+			require.Equal(t, "Bool", row.Type())
+		}
+
+		i++
+	}
+}

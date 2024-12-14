@@ -122,6 +122,8 @@ func (t Type) Column(name string, tz *time.Location) (Interface, error) {
 		return &Point{name: name}, nil
 	case "String":
 		return &String{name: name}, nil
+    case "SharedVariant":
+        return &SharedVariant{name: name}, nil
 	case "Object('json')":
 	    return &JSONObject{name: name, root: true, tz: tz}, nil
 	}

@@ -257,8 +257,8 @@ func (b *Block) Decode(reader *proto.Reader, revision uint64) (err error) {
 }
 
 func (b *Block) Reset() {
-	for i := range b.Columns {
-		b.Columns[i].Reset()
+	for _, col := range b.Columns {
+		col.Reset()
 	}
 }
 
