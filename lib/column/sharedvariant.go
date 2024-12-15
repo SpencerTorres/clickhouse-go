@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ClickHouse/ch-go/proto"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/binary"
 	"reflect"
 	"strings"
 )
@@ -37,40 +38,6 @@ type SharedVariant struct {
 
 	columns         []Interface
 	columnTypeIndex map[string]int
-}
-
-// binaryTypeToStringType maps a single byte type to a string type.
-// Binary types are more complex and longer than this, but we can add a proper parser later.
-var binaryTypeToStringType = map[uint8]string{
-	0x00: "Nothing",
-	0x01: "UInt8",
-	0x02: "UInt16",
-	0x03: "UInt32",
-	0x04: "UInt64",
-	0x05: "UInt128",
-	0x06: "UInt256",
-	0x07: "Int8",
-	0x08: "Int16",
-	0x09: "Int32",
-	0x0A: "Int64",
-	0x0B: "Int128",
-	0x0C: "Int256",
-	0x0D: "Float32",
-	0x0E: "Float64",
-	0x0F: "Date",
-	0x10: "Date32",
-	0x11: "DateTime",
-
-	0x15: "String",
-
-	0x1D: "UUID",
-
-	0x21: "Set",
-
-	0x28: "IPv4",
-	0x29: "IPv6",
-
-	0x2D: "Bool",
 }
 
 func (c *SharedVariant) Name() string {
@@ -121,6 +88,7 @@ func (c *SharedVariant) AppendRow(v any) error {
 }
 
 // Decode takes a String-like column and converts it into a Variant-like column. Very inefficiently.
+// Format docs: https://clickhouse.com/docs/en/sql-reference/data-types/dynamic#binary-output-format
 func (c *SharedVariant) Decode(reader *proto.Reader, rows int) error {
 	c.rows = rows
 	c.discriminators = make([]int, rows)
@@ -138,22 +106,9 @@ func (c *SharedVariant) Decode(reader *proto.Reader, rows int) error {
 			return fmt.Errorf("failed to decode SharedVariant value length at row index %d: %w", i, err)
 		}
 
-		typeLength := 1
-		typeByte, err := reader.ReadByte()
-		if err != nil {
-			return fmt.Errorf("failed to decode SharedVariant value at row index %d: %w", i, err)
-		}
-
-		typeName, ok := binaryTypeToStringType[typeByte]
+		typeName, typeLength, ok := binary.ReadBinaryType(reader)
 		if !ok {
-			c.discriminators[i] = SharedVariantInvalidType
-			// Unknown type, skip buffer to next row
-			_, err := reader.ReadRaw(rowLen - typeLength)
-			if err != nil {
-				return fmt.Errorf("failed to skip in SharedVariant: %w", err)
-			}
-
-			continue
+			return fmt.Errorf("failed to decode SharedVariant type at row index %d", i)
 		}
 
 		colIndex, ok := c.columnTypeIndex[typeName]
