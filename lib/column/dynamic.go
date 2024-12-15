@@ -118,6 +118,10 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 	if typeIndex != NullVariantDiscriminator {
 		value = c.variant.columns[typeIndex].Row(offsetIndex, false)
 		chType = string(c.variant.columns[typeIndex].Type())
+
+		if chType == "SharedVariant" {
+			chType = string((c.variant.columns[typeIndex].(*SharedVariant)).RowType(offsetIndex))
+		}
 	}
 
 	switch v := dest.(type) {

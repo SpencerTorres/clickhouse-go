@@ -197,10 +197,6 @@ func TestDynamic_BatchFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	vals := make([]clickhouse.DynamicWithType, 0, 1000)
-	//vals = append(vals, clickhouse.NewDynamicWithType(int64(0), "Int64"))
-	//vals = append(vals, clickhouse.NewDynamicWithType(false, "Bool"))
-	//require.NoError(t, batch.Append(vals[0]))
-	//require.NoError(t, batch.Append(vals[1]))
 	for i := 0; i < 1000; i++ {
 		if i%2 == 0 {
 			vals = append(vals, clickhouse.NewDynamicWithType(int64(i), "Int64"))
