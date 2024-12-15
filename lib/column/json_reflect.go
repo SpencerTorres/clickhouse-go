@@ -27,7 +27,7 @@ import (
 // Decoding (Scanning)
 
 // scanIntoStruct will iterate the provided struct and scan JSON data into the matching fields
-func (c *ColJSON) scanIntoStruct(dest any, row int) error {
+func (c *JSON) scanIntoStruct(dest any, row int) error {
 	val := reflect.ValueOf(dest)
 	if val.Kind() != reflect.Ptr {
 		return fmt.Errorf("destination must be a pointer")
@@ -42,7 +42,7 @@ func (c *ColJSON) scanIntoStruct(dest any, row int) error {
 }
 
 // scanIntoMap converts JSON data into a map
-func (c *ColJSON) scanIntoMap(dest any, row int) error {
+func (c *JSON) scanIntoMap(dest any, row int) error {
 	val := reflect.ValueOf(dest)
 	if val.Kind() != reflect.Ptr {
 		return fmt.Errorf("destination must be a pointer")
@@ -65,7 +65,7 @@ func (c *ColJSON) scanIntoMap(dest any, row int) error {
 }
 
 // fillStruct will iterate the provided struct and scan JSON data into the matching fields recursively
-func (c *ColJSON) fillStruct(val reflect.Value, prefix string, row int) error {
+func (c *JSON) fillStruct(val reflect.Value, prefix string, row int) error {
 	typ := val.Type()
 
 	for i := 0; i < val.NumField(); i++ {
@@ -139,7 +139,7 @@ func (c *ColJSON) fillStruct(val reflect.Value, prefix string, row int) error {
 }
 
 // fillMap will iterate the provided map and scan JSON data in recursively
-func (c *ColJSON) fillMap(val reflect.Value, prefix string, row int) error {
+func (c *JSON) fillMap(val reflect.Value, prefix string, row int) error {
 	if val.IsNil() {
 		val.Set(reflect.MakeMap(val.Type()))
 	}

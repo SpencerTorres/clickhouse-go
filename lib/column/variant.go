@@ -30,7 +30,7 @@ import (
 const SupportedVariantSerializationVersion = 0
 const NullVariantDiscriminator uint8 = 255
 
-type ColVariant struct {
+type Variant struct {
 	chType Type
 	name   string
 
@@ -41,7 +41,7 @@ type ColVariant struct {
 	columnTypeIndex map[string]uint8
 }
 
-func (c *ColVariant) parse(t Type, tz *time.Location) (_ *ColVariant, err error) {
+func (c *Variant) parse(t Type, tz *time.Location) (_ *Variant, err error) {
 	c.chType = t
 	var (
 		element       []rune
@@ -98,32 +98,32 @@ func (c *ColVariant) parse(t Type, tz *time.Location) (_ *ColVariant, err error)
 	}
 }
 
-func (c *ColVariant) addColumn(col Interface) {
+func (c *Variant) addColumn(col Interface) {
 	c.columns = append(c.columns, col)
 	c.columnTypeIndex[string(col.Type())] = uint8(len(c.columns) - 1)
 }
 
-func (c *ColVariant) appendDiscriminatorRow(d uint8) {
+func (c *Variant) appendDiscriminatorRow(d uint8) {
 	c.discriminators = append(c.discriminators, d)
 }
 
-func (c *ColVariant) appendNullRow() {
+func (c *Variant) appendNullRow() {
 	c.appendDiscriminatorRow(NullVariantDiscriminator)
 }
 
-func (c *ColVariant) Name() string {
+func (c *Variant) Name() string {
 	return c.name
 }
 
-func (c *ColVariant) Type() Type {
+func (c *Variant) Type() Type {
 	return c.chType
 }
 
-func (c *ColVariant) Rows() int {
+func (c *Variant) Rows() int {
 	return len(c.discriminators)
 }
 
-func (c *ColVariant) Row(i int, ptr bool) any {
+func (c *Variant) Row(i int, ptr bool) any {
 	typeIndex := c.discriminators[i]
 	if typeIndex == NullVariantDiscriminator {
 		return nil
@@ -132,7 +132,7 @@ func (c *ColVariant) Row(i int, ptr bool) any {
 	return c.columns[typeIndex].Row(c.offsets[i], ptr)
 }
 
-func (c *ColVariant) ScanRow(dest any, row int) error {
+func (c *Variant) ScanRow(dest any, row int) error {
 	typeIndex := c.discriminators[row]
 	offsetIndex := c.offsets[row]
 	var value any
@@ -168,12 +168,12 @@ func (c *ColVariant) ScanRow(dest any, row int) error {
 	return nil
 }
 
-func (c *ColVariant) Append(v any) (nulls []uint8, err error) {
+func (c *Variant) Append(v any) (nulls []uint8, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *ColVariant) AppendRow(v any) error {
+func (c *Variant) AppendRow(v any) error {
 	var requestedType string
 	switch v.(type) {
 	case nil:
@@ -219,11 +219,11 @@ func (c *ColVariant) AppendRow(v any) error {
 	return fmt.Errorf("value \"%v\" cannot be stored in variant column: no compatible types", v)
 }
 
-func (c *ColVariant) encodeHeader(buffer *proto.Buffer) {
+func (c *Variant) encodeHeader(buffer *proto.Buffer) {
 	buffer.PutUInt64(SupportedVariantSerializationVersion)
 }
 
-func (c *ColVariant) encodeData(buffer *proto.Buffer) {
+func (c *Variant) encodeData(buffer *proto.Buffer) {
 	buffer.PutRaw(c.discriminators)
 
 	for _, col := range c.columns {
@@ -231,16 +231,16 @@ func (c *ColVariant) encodeData(buffer *proto.Buffer) {
 	}
 }
 
-func (c *ColVariant) Encode(buffer *proto.Buffer) {
+func (c *Variant) Encode(buffer *proto.Buffer) {
 	c.encodeHeader(buffer)
 	c.encodeData(buffer)
 }
 
-func (c *ColVariant) ScanType() reflect.Type {
+func (c *Variant) ScanType() reflect.Type {
 	return scanTypeVariant
 }
 
-func (c *ColVariant) Reset() {
+func (c *Variant) Reset() {
 	c.discriminators = c.discriminators[:0]
 
 	for _, col := range c.columns {
@@ -248,7 +248,7 @@ func (c *ColVariant) Reset() {
 	}
 }
 
-func (c *ColVariant) decodeHeader(reader *proto.Reader) error {
+func (c *Variant) decodeHeader(reader *proto.Reader) error {
 	variantSerializationVersion, err := reader.UInt64()
 	if err != nil {
 		return fmt.Errorf("failed to read variant discriminator version: %w", err)
@@ -259,7 +259,7 @@ func (c *ColVariant) decodeHeader(reader *proto.Reader) error {
 	return nil
 }
 
-func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
+func (c *Variant) decodeData(reader *proto.Reader, rows int) error {
 	c.discriminators = make([]uint8, rows)
 	c.offsets = make([]int, rows)
 	rowCountByType := make(map[uint8]int, len(c.columns))
@@ -290,7 +290,7 @@ func (c *ColVariant) decodeData(reader *proto.Reader, rows int) error {
 	return nil
 }
 
-func (c *ColVariant) Decode(reader *proto.Reader, rows int) error {
+func (c *Variant) Decode(reader *proto.Reader, rows int) error {
 	err := c.decodeHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to decode variant header: %w", err)

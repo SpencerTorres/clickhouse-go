@@ -32,7 +32,7 @@ import (
 const SupportedDynamicSerializationVersion = 1
 const DefaultMaxDynamicTypes = 32
 
-type ColDynamic struct {
+type Dynamic struct {
 	chType Type
 	tz     *time.Location
 
@@ -43,10 +43,10 @@ type ColDynamic struct {
 	typeNames      []string
 	typeNamesIndex map[string]int
 
-	variant ColVariant
+	variant Variant
 }
 
-func (c *ColDynamic) parse(t Type, tz *time.Location) (_ *ColDynamic, err error) {
+func (c *Dynamic) parse(t Type, tz *time.Location) (_ *Dynamic, err error) {
 	c.chType = t
 	c.tz = tz
 	tStr := string(t)
@@ -81,7 +81,7 @@ func (c *ColDynamic) parse(t Type, tz *time.Location) (_ *ColDynamic, err error)
 	return c, nil
 }
 
-func (c *ColDynamic) addColumn(col Interface) {
+func (c *Dynamic) addColumn(col Interface) {
 	typeName := string(col.Type())
 	c.typeNames = append(c.typeNames, typeName)
 	c.typeNamesIndex[typeName] = len(c.typeNames) - 1
@@ -89,19 +89,19 @@ func (c *ColDynamic) addColumn(col Interface) {
 	c.variant.addColumn(col)
 }
 
-func (c *ColDynamic) Name() string {
+func (c *Dynamic) Name() string {
 	return c.name
 }
 
-func (c *ColDynamic) Type() Type {
+func (c *Dynamic) Type() Type {
 	return c.chType
 }
 
-func (c *ColDynamic) Rows() int {
+func (c *Dynamic) Rows() int {
 	return c.variant.Rows()
 }
 
-func (c *ColDynamic) Row(i int, ptr bool) any {
+func (c *Dynamic) Row(i int, ptr bool) any {
 	typeIndex := c.variant.discriminators[i]
 	if typeIndex == NullVariantDiscriminator {
 		return nil
@@ -110,7 +110,7 @@ func (c *ColDynamic) Row(i int, ptr bool) any {
 	return c.variant.columns[typeIndex].Row(c.variant.offsets[i], ptr)
 }
 
-func (c *ColDynamic) ScanRow(dest any, row int) error {
+func (c *Dynamic) ScanRow(dest any, row int) error {
 	typeIndex := c.variant.discriminators[row]
 	offsetIndex := c.variant.offsets[row]
 	var value any
@@ -150,12 +150,12 @@ func (c *ColDynamic) ScanRow(dest any, row int) error {
 	return nil
 }
 
-func (c *ColDynamic) Append(v any) (nulls []uint8, err error) {
+func (c *Dynamic) Append(v any) (nulls []uint8, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *ColDynamic) AppendRow(v any) error {
+func (c *Dynamic) AppendRow(v any) error {
 	var requestedType string
 	switch v.(type) {
 	case nil:
@@ -221,7 +221,7 @@ func (c *ColDynamic) AppendRow(v any) error {
 	return fmt.Errorf("value \"%v\" cannot be stored in dynamic column: no compatible types. hint: use %s to wrap the value", v, scanTypeDynamic.String())
 }
 
-func (c *ColDynamic) sortColumnsForEncoding() {
+func (c *Dynamic) sortColumnsForEncoding() {
 	previousTypeNames := make([]string, 0, len(c.typeNames))
 	previousTypeNames = append(previousTypeNames, c.typeNames...)
 	slices.Sort(c.typeNames)
@@ -250,7 +250,7 @@ func (c *ColDynamic) sortColumnsForEncoding() {
 	}
 }
 
-func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
+func (c *Dynamic) encodeHeader(buffer *proto.Buffer) {
 	c.sortColumnsForEncoding()
 
 	buffer.PutUInt64(SupportedDynamicSerializationVersion)
@@ -269,24 +269,24 @@ func (c *ColDynamic) encodeHeader(buffer *proto.Buffer) {
 	c.variant.encodeHeader(buffer)
 }
 
-func (c *ColDynamic) encodeData(buffer *proto.Buffer) {
+func (c *Dynamic) encodeData(buffer *proto.Buffer) {
 	c.variant.encodeData(buffer)
 }
 
-func (c *ColDynamic) Encode(buffer *proto.Buffer) {
+func (c *Dynamic) Encode(buffer *proto.Buffer) {
 	c.encodeHeader(buffer)
 	c.encodeData(buffer)
 }
 
-func (c *ColDynamic) ScanType() reflect.Type {
+func (c *Dynamic) ScanType() reflect.Type {
 	return scanTypeDynamic
 }
 
-func (c *ColDynamic) Reset() {
+func (c *Dynamic) Reset() {
 	c.variant.Reset()
 }
 
-func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
+func (c *Dynamic) decodeHeader(reader *proto.Reader) error {
 	dynamicSerializationVersion, err := reader.UInt64()
 	if err != nil {
 		return fmt.Errorf("failed to read dynamic serialization version: %w", err)
@@ -342,7 +342,7 @@ func (c *ColDynamic) decodeHeader(reader *proto.Reader) error {
 	return nil
 }
 
-func (c *ColDynamic) decodeData(reader *proto.Reader, rows int) error {
+func (c *Dynamic) decodeData(reader *proto.Reader, rows int) error {
 	err := c.variant.decodeData(reader, rows)
 	if err != nil {
 		return fmt.Errorf("failed to decode variant data: %w", err)
@@ -351,7 +351,7 @@ func (c *ColDynamic) decodeData(reader *proto.Reader, rows int) error {
 	return nil
 }
 
-func (c *ColDynamic) Decode(reader *proto.Reader, rows int) error {
+func (c *Dynamic) Decode(reader *proto.Reader, rows int) error {
 	err := c.decodeHeader(reader)
 	if err != nil {
 		return fmt.Errorf("failed to decode dynamic header: %w", err)

@@ -18,7 +18,7 @@ func TestColVariant_parse(t *testing.T) {
 	}
 
 	for i, c := range cases {
-		col, err := (&ColVariant{name: "vt"}).parse(c.typ, nil)
+		col, err := (&Variant{name: "vt"}).parse(c.typ, nil)
 		if err != nil {
 			t.Fatalf("case index %d failed to parse Variant column: %s", i, err)
 		}
@@ -53,7 +53,7 @@ func TestColVariant_parse_invalid(t *testing.T) {
 	}
 
 	for i, typeName := range cases {
-		_, err := (&ColVariant{name: "vt"}).parse(typeName, nil)
+		_, err := (&Variant{name: "vt"}).parse(typeName, nil)
 		if err == nil {
 			t.Fatalf("expected error for case index %d (\"%s\"), but received nil", i, typeName)
 		}
@@ -61,7 +61,7 @@ func TestColVariant_parse_invalid(t *testing.T) {
 }
 
 func TestColVariant_addColumn(t *testing.T) {
-	col := ColVariant{columnTypeIndex: make(map[string]uint8, 1)}
+	col := Variant{columnTypeIndex: make(map[string]uint8, 1)}
 
 	col.addColumn(&Int64{})
 
@@ -72,7 +72,7 @@ func TestColVariant_addColumn(t *testing.T) {
 }
 
 func TestColVariant_appendDiscriminatorRow(t *testing.T) {
-	col := ColVariant{}
+	col := Variant{}
 	var discriminator uint8 = 8
 
 	col.appendDiscriminatorRow(discriminator)
@@ -82,7 +82,7 @@ func TestColVariant_appendDiscriminatorRow(t *testing.T) {
 }
 
 func TestColVariant_appendNullRow(t *testing.T) {
-	col := ColVariant{}
+	col := Variant{}
 
 	col.appendNullRow()
 

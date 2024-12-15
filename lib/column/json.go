@@ -34,7 +34,7 @@ const JSONStringSerializationVersion uint64 = 1
 const JSONUnsetSerializationVersion uint64 = math.MaxUint64
 const DefaultMaxDynamicPaths = 1024
 
-type ColJSON struct {
+type JSON struct {
 	chType Type
 	tz     *time.Location
 	name   string
@@ -53,31 +53,31 @@ type ColJSON struct {
 
 	dynamicPaths      []string
 	dynamicPathsIndex map[string]int
-	dynamicColumns    []*ColDynamic
+	dynamicColumns    []*Dynamic
 
 	maxDynamicPaths   int
 	maxDynamicTypes   int
 	totalDynamicPaths int
 }
 
-func (c *ColJSON) hasTypedPath(path string) bool {
+func (c *JSON) hasTypedPath(path string) bool {
 	_, ok := c.typedPathsIndex[path]
 	return ok
 }
 
-func (c *ColJSON) hasDynamicPath(path string) bool {
+func (c *JSON) hasDynamicPath(path string) bool {
 	_, ok := c.dynamicPathsIndex[path]
 	return ok
 }
 
-func (c *ColJSON) hasSkipPath(path string) bool {
+func (c *JSON) hasSkipPath(path string) bool {
 	_, ok := c.skipPathsIndex[path]
 	return ok
 }
 
 // pathHasNestedValues returns true if the provided path has child paths in typed or dynamic paths
 // TODO: cache this information in a Set to reduce time complexity?
-func (c *ColJSON) pathHasNestedValues(path string) bool {
+func (c *JSON) pathHasNestedValues(path string) bool {
 	for _, typedPath := range c.typedPaths {
 		if strings.HasPrefix(typedPath, path+".") {
 			return true
@@ -96,7 +96,7 @@ func (c *ColJSON) pathHasNestedValues(path string) bool {
 }
 
 // valueAtPath returns the row value at the specified path, typed or dynamic
-func (c *ColJSON) valueAtPath(path string, row int, ptr bool) any {
+func (c *JSON) valueAtPath(path string, row int, ptr bool) any {
 	if colIndex, ok := c.typedPathsIndex[path]; ok {
 		return c.typedColumns[colIndex].Row(row, ptr)
 	}
@@ -111,7 +111,7 @@ func (c *ColJSON) valueAtPath(path string, row int, ptr bool) any {
 }
 
 // scanTypedPathToValue scans the provided typed path into a `reflect.Value`
-func (c *ColJSON) scanTypedPathToValue(path string, row int, value reflect.Value) error {
+func (c *JSON) scanTypedPathToValue(path string, row int, value reflect.Value) error {
 	colIndex, ok := c.typedPathsIndex[path]
 	if !ok {
 		return fmt.Errorf("typed path \"%s\" does not exist in JSON column", path)
@@ -127,7 +127,7 @@ func (c *ColJSON) scanTypedPathToValue(path string, row int, value reflect.Value
 }
 
 // scanDynamicPathToValue scans the provided typed path into a `reflect.Value`
-func (c *ColJSON) scanDynamicPathToValue(path string, row int, value reflect.Value) error {
+func (c *JSON) scanDynamicPathToValue(path string, row int, value reflect.Value) error {
 	colIndex, ok := c.dynamicPathsIndex[path]
 	if !ok {
 		return fmt.Errorf("dynamic path \"%s\" does not exist in JSON column", path)
@@ -179,7 +179,7 @@ func splitWithDelimiters(s string) []string {
 	return parts
 }
 
-func (c *ColJSON) parse(t Type, tz *time.Location) (_ *ColJSON, err error) {
+func (c *JSON) parse(t Type, tz *time.Location) (_ *JSON, err error) {
 	c.chType = t
 	c.tz = tz
 	tStr := string(t)
@@ -264,23 +264,23 @@ func (c *ColJSON) parse(t Type, tz *time.Location) (_ *ColJSON, err error) {
 	return c, nil
 }
 
-func (c *ColJSON) Name() string {
+func (c *JSON) Name() string {
 	return c.name
 }
 
-func (c *ColJSON) Type() Type {
+func (c *JSON) Type() Type {
 	return c.chType
 }
 
-func (c *ColJSON) Rows() int {
+func (c *JSON) Rows() int {
 	return c.rows
 }
 
-func (c *ColJSON) Row(i int, ptr bool) any {
+func (c *JSON) Row(i int, ptr bool) any {
 	return nil
 }
 
-func (c *ColJSON) ScanRow(dest any, row int) error {
+func (c *JSON) ScanRow(dest any, row int) error {
 	switch c.serializationVersion {
 	case JSONObjectSerializationVersion:
 		return c.scanRowObject(dest, row)
@@ -291,7 +291,7 @@ func (c *ColJSON) ScanRow(dest any, row int) error {
 	}
 }
 
-func (c *ColJSON) scanRowObject(dest any, row int) error {
+func (c *JSON) scanRowObject(dest any, row int) error {
 	switch val := reflect.ValueOf(dest); val.Kind() {
 	case reflect.Ptr:
 		if val.Elem().Kind() == reflect.Struct {
@@ -342,16 +342,16 @@ func (c *ColJSON) scanRowObject(dest any, row int) error {
 	return nil
 }
 
-func (c *ColJSON) scanRowString(dest any, row int) error {
+func (c *JSON) scanRowString(dest any, row int) error {
 	return c.jsonStrings.ScanRow(dest, row)
 }
 
-func (c *ColJSON) Append(v any) (nulls []uint8, err error) {
+func (c *JSON) Append(v any) (nulls []uint8, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *ColJSON) AppendRow(v any) error {
+func (c *JSON) AppendRow(v any) error {
 	switch c.serializationVersion {
 	case JSONObjectSerializationVersion:
 		return c.appendRowObject(v)
@@ -372,7 +372,7 @@ func (c *ColJSON) AppendRow(v any) error {
 	}
 }
 
-func (c *ColJSON) appendRowObject(v any) error {
+func (c *JSON) appendRowObject(v any) error {
 	var obj *chcol.JSON
 	var err error
 	switch val := reflect.ValueOf(v); val.Kind() {
@@ -441,7 +441,7 @@ func (c *ColJSON) appendRowObject(v any) error {
 		} else {
 			// Path doesn't exist, add new dynamic path + column
 			parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
-			colDynamic := parsedColDynamic.(*ColDynamic)
+			colDynamic := parsedColDynamic.(*Dynamic)
 
 			// New path must back-fill nils for each row
 			for i := 0; i < c.rows; i++ {
@@ -467,7 +467,7 @@ func (c *ColJSON) appendRowObject(v any) error {
 	return nil
 }
 
-func (c *ColJSON) appendRowString(v any) error {
+func (c *JSON) appendRowString(v any) error {
 	err := c.jsonStrings.AppendRow(v)
 	if err != nil {
 		return err
@@ -477,7 +477,7 @@ func (c *ColJSON) appendRowString(v any) error {
 	return nil
 }
 
-func (c *ColJSON) encodeObjectHeader(buffer *proto.Buffer) {
+func (c *JSON) encodeObjectHeader(buffer *proto.Buffer) {
 	buffer.PutUVarInt(uint64(c.maxDynamicPaths))
 	buffer.PutUVarInt(uint64(c.totalDynamicPaths))
 
@@ -492,7 +492,7 @@ func (c *ColJSON) encodeObjectHeader(buffer *proto.Buffer) {
 	}
 }
 
-func (c *ColJSON) encodeObjectData(buffer *proto.Buffer) {
+func (c *JSON) encodeObjectData(buffer *proto.Buffer) {
 	for _, col := range c.typedColumns {
 		col.Encode(buffer)
 	}
@@ -507,11 +507,11 @@ func (c *ColJSON) encodeObjectData(buffer *proto.Buffer) {
 	}
 }
 
-func (c *ColJSON) encodeStringData(buffer *proto.Buffer) {
+func (c *JSON) encodeStringData(buffer *proto.Buffer) {
 	c.jsonStrings.Encode(buffer)
 }
 
-func (c *ColJSON) Encode(buffer *proto.Buffer) {
+func (c *JSON) Encode(buffer *proto.Buffer) {
 	switch c.serializationVersion {
 	case JSONObjectSerializationVersion:
 		buffer.PutUInt64(JSONObjectSerializationVersion)
@@ -525,12 +525,12 @@ func (c *ColJSON) Encode(buffer *proto.Buffer) {
 	}
 }
 
-func (c *ColJSON) ScanType() reflect.Type {
+func (c *JSON) ScanType() reflect.Type {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *ColJSON) Reset() {
+func (c *JSON) Reset() {
 	c.rows = 0
 
 	switch c.serializationVersion {
@@ -550,7 +550,7 @@ func (c *ColJSON) Reset() {
 	}
 }
 
-func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
+func (c *JSON) decodeObjectHeader(reader *proto.Reader) error {
 	maxDynamicPaths, err := reader.UVarInt()
 	if err != nil {
 		return fmt.Errorf("failed to read max dynamic paths for json column: %w", err)
@@ -578,10 +578,10 @@ func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
 	//for range c.typedPaths {
 	//}
 
-	c.dynamicColumns = make([]*ColDynamic, 0, totalDynamicPaths)
+	c.dynamicColumns = make([]*Dynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {
 		parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
-		colDynamic := parsedColDynamic.(*ColDynamic)
+		colDynamic := parsedColDynamic.(*Dynamic)
 
 		err := colDynamic.decodeHeader(reader)
 		if err != nil {
@@ -596,7 +596,7 @@ func (c *ColJSON) decodeObjectHeader(reader *proto.Reader) error {
 	return nil
 }
 
-func (c *ColJSON) decodeObjectData(reader *proto.Reader, rows int) error {
+func (c *JSON) decodeObjectData(reader *proto.Reader, rows int) error {
 	for i, col := range c.typedColumns {
 		typedPath := c.typedPaths[i]
 
@@ -618,11 +618,11 @@ func (c *ColJSON) decodeObjectData(reader *proto.Reader, rows int) error {
 	return nil
 }
 
-func (c *ColJSON) decodeStringData(reader *proto.Reader, rows int) error {
+func (c *JSON) decodeStringData(reader *proto.Reader, rows int) error {
 	return c.jsonStrings.Decode(reader, rows)
 }
 
-func (c *ColJSON) Decode(reader *proto.Reader, rows int) error {
+func (c *JSON) Decode(reader *proto.Reader, rows int) error {
 	c.rows = rows
 
 	jsonSerializationVersion, err := reader.UInt64()

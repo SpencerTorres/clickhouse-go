@@ -62,7 +62,7 @@ var typeMappings = map[string]struct{}{
 	"uuid.UUID":       {},
 }
 
-type JSON interface {
+type ObjectJSON interface {
 	Interface
 	appendEmptyValue() error
 }
@@ -704,7 +704,7 @@ func (jCol *JSONList) Type() Type {
 }
 
 type JSONObject struct {
-	columns  []JSON
+	columns  []ObjectJSON
 	name     string
 	root     bool
 	encoding uint8
