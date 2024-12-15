@@ -76,7 +76,6 @@ func (c *JSON) hasSkipPath(path string) bool {
 }
 
 // pathHasNestedValues returns true if the provided path has child paths in typed or dynamic paths
-// TODO: cache this information in a Set to reduce time complexity?
 func (c *JSON) pathHasNestedValues(path string) bool {
 	for _, typedPath := range c.typedPaths {
 		if strings.HasPrefix(typedPath, path+".") {
