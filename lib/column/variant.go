@@ -126,11 +126,20 @@ func (c *Variant) Rows() int {
 
 func (c *Variant) Row(i int, ptr bool) any {
 	typeIndex := c.discriminators[i]
-	if typeIndex == NullVariantDiscriminator {
-		return nil
+	offsetIndex := c.offsets[i]
+	var value any
+	var chType string
+	if typeIndex != NullVariantDiscriminator {
+		value = c.columns[typeIndex].Row(offsetIndex, ptr)
+		chType = string(c.columns[typeIndex].Type())
 	}
 
-	return c.columns[typeIndex].Row(c.offsets[i], ptr)
+	vt := chcol.NewVariantWithType(value, chType)
+	if ptr {
+		return &vt
+	}
+
+	return vt
 }
 
 func (c *Variant) ScanRow(dest any, row int) error {

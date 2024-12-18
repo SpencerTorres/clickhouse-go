@@ -275,8 +275,27 @@ func (c *JSON) Rows() int {
 	return c.rows
 }
 
-func (c *JSON) Row(i int, ptr bool) any {
-	return nil
+func (c *JSON) Row(row int, ptr bool) any {
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		obj := chcol.NewJSON()
+
+		for i, path := range c.typedPaths {
+			col := c.typedColumns[i]
+			obj.SetValueAtPath(path, col.Row(i, ptr))
+		}
+
+		for i, path := range c.dynamicPaths {
+			col := c.dynamicColumns[i]
+			obj.SetValueAtPath(path, col.Row(i, ptr))
+		}
+
+		return obj
+	case JSONStringSerializationVersion:
+		return c.jsonStrings.Row(row, ptr)
+	default:
+		return nil
+	}
 }
 
 func (c *JSON) ScanRow(dest any, row int) error {
@@ -525,8 +544,7 @@ func (c *JSON) Encode(buffer *proto.Buffer) {
 }
 
 func (c *JSON) ScanType() reflect.Type {
-	//TODO implement me
-	panic("implement me")
+	return scanTypeJSON
 }
 
 func (c *JSON) Reset() {

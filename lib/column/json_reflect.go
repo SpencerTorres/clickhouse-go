@@ -203,6 +203,10 @@ func (c *JSON) fillMap(val reflect.Value, prefix string, row int) error {
 			} else {
 				if mapValueType.Kind() == reflect.Interface {
 					value := c.valueAtPath(fullPath, row, false)
+					if _, ok := value.(chcol.DynamicWithType); ok {
+						value = value.(chcol.DynamicWithType).Any()
+					}
+
 					if value != nil {
 						newVal.Set(reflect.ValueOf(value))
 					}

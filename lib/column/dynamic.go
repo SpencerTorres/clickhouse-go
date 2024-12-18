@@ -104,11 +104,20 @@ func (c *Dynamic) Rows() int {
 
 func (c *Dynamic) Row(i int, ptr bool) any {
 	typeIndex := c.variant.discriminators[i]
-	if typeIndex == NullVariantDiscriminator {
-		return nil
+	offsetIndex := c.variant.offsets[i]
+	var value any
+	var chType string
+	if typeIndex != NullVariantDiscriminator {
+		value = c.variant.columns[typeIndex].Row(offsetIndex, ptr)
+		chType = string(c.variant.columns[typeIndex].Type())
 	}
 
-	return c.variant.columns[typeIndex].Row(c.variant.offsets[i], ptr)
+	dyn := chcol.NewDynamicWithType(value, chType)
+	if ptr {
+		return &dyn
+	}
+
+	return dyn
 }
 
 func (c *Dynamic) ScanRow(dest any, row int) error {
