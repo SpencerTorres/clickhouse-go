@@ -18,6 +18,7 @@
 package column
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"reflect"
@@ -169,8 +170,64 @@ func (c *Variant) ScanRow(dest any, row int) error {
 }
 
 func (c *Variant) Append(v any) (nulls []uint8, err error) {
-	//TODO implement me
-	panic("implement me")
+	switch v.(type) {
+	case []chcol.Variant:
+		for i, vt := range v.([]chcol.Variant) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []*chcol.Variant:
+		for i, vt := range v.([]*chcol.Variant) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []chcol.VariantWithType:
+		for i, vt := range v.([]chcol.VariantWithType) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []*chcol.VariantWithType:
+		for i, vt := range v.([]*chcol.VariantWithType) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	default:
+		if valuer, ok := v.(driver.Valuer); ok {
+			val, err := valuer.Value()
+			if err != nil {
+				return nil, &ColumnConverterError{
+					Op:   "Append",
+					To:   string(c.chType),
+					From: fmt.Sprintf("%T", v),
+					Hint: "could not get driver.Valuer value",
+				}
+			}
+
+			return c.Append(val)
+		}
+
+		return nil, &ColumnConverterError{
+			Op:   "Append",
+			To:   string(c.chType),
+			From: fmt.Sprintf("%T", v),
+		}
+	}
 }
 
 func (c *Variant) AppendRow(v any) error {

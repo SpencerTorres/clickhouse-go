@@ -18,6 +18,7 @@
 package column
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"slices"
@@ -147,8 +148,64 @@ func (c *Dynamic) ScanRow(dest any, row int) error {
 }
 
 func (c *Dynamic) Append(v any) (nulls []uint8, err error) {
-	//TODO implement me
-	panic("implement me")
+	switch v.(type) {
+	case []chcol.Dynamic:
+		for i, vt := range v.([]chcol.Dynamic) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []*chcol.Dynamic:
+		for i, vt := range v.([]*chcol.Dynamic) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []chcol.DynamicWithType:
+		for i, vt := range v.([]chcol.DynamicWithType) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []*chcol.DynamicWithType:
+		for i, vt := range v.([]*chcol.DynamicWithType) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	default:
+		if valuer, ok := v.(driver.Valuer); ok {
+			val, err := valuer.Value()
+			if err != nil {
+				return nil, &ColumnConverterError{
+					Op:   "Append",
+					To:   string(c.chType),
+					From: fmt.Sprintf("%T", v),
+					Hint: "could not get driver.Valuer value",
+				}
+			}
+
+			return c.Append(val)
+		}
+
+		return nil, &ColumnConverterError{
+			Op:   "Append",
+			To:   string(c.chType),
+			From: fmt.Sprintf("%T", v),
+		}
+	}
 }
 
 func (c *Dynamic) AppendRow(v any) error {
