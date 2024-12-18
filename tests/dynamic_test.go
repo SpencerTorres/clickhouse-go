@@ -180,6 +180,8 @@ func TestDynamic_ScanWithType(t *testing.T) {
 }
 
 func TestDynamic_BatchFlush(t *testing.T) {
+	t.Skip(fmt.Errorf("server-side SharedVariant bug"))
+
 	ctx := context.Background()
 	conn := setupDynamicTest(t)
 
