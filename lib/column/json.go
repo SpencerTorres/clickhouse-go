@@ -293,7 +293,7 @@ func (c *JSON) scanRowObject(dest any, row int) error {
 		}
 	}
 
-	return fmt.Errorf("destination must be a pointer to struct or map, or %s", scanTypeJSON.String())
+	return fmt.Errorf("destination must be a pointer to struct or map, or %s. hint: enable \"output_format_native_write_json_as_string\" setting for string decoding", scanTypeJSON.String())
 }
 
 func (c *JSON) scanRowString(dest any, row int) error {
