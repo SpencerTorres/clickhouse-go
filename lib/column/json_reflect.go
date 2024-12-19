@@ -30,7 +30,7 @@ import (
 // scanIntoStruct will iterate the provided struct and scan JSON data into the matching fields
 func (c *JSON) scanIntoStruct(dest any, row int) error {
 	val := reflect.ValueOf(dest)
-	if val.Kind() != reflect.Ptr {
+	if val.Kind() != reflect.Pointer {
 		return fmt.Errorf("destination must be a pointer")
 	}
 	val = val.Elem()
@@ -45,7 +45,7 @@ func (c *JSON) scanIntoStruct(dest any, row int) error {
 // scanIntoMap converts JSON data into a map
 func (c *JSON) scanIntoMap(dest any, row int) error {
 	val := reflect.ValueOf(dest)
-	if val.Kind() != reflect.Ptr {
+	if val.Kind() != reflect.Pointer {
 		return fmt.Errorf("destination must be a pointer")
 	}
 	val = val.Elem()
@@ -367,7 +367,7 @@ func handleValue(val reflect.Value, path string, json *chcol.JSON, forcedType st
 	}
 
 	switch val.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if val.IsNil() {
 			json.SetValueAtPath(path, nil)
 			return nil
