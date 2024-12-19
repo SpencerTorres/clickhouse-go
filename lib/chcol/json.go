@@ -2,6 +2,7 @@ package chcol
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 )
 
@@ -28,6 +29,11 @@ func (o *JSON) SetValueAtPath(path string, value any) {
 func (o *JSON) ValueAtPath(path string) (any, bool) {
 	value, ok := o.valuesByPath[path]
 	return value, ok
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (o *JSON) MarshalJSON() ([]byte, error) {
+	return json.Marshal(o.valuesByPath)
 }
 
 // Scan implements the sql.Scanner interface

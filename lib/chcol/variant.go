@@ -19,6 +19,7 @@ package chcol
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 )
 
 // Variant represents a ClickHouse Variant type that can hold multiple possible types
@@ -80,6 +81,11 @@ func (v Variant) Bool() (bool, bool) {
 	}
 
 	return false, false
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (v *Variant) MarshalJSON() ([]byte, error) {
+	return json.Marshal(v.value)
 }
 
 // Scan implements the sql.Scanner interface
