@@ -285,7 +285,7 @@ func (c *JSON) scanRowObject(dest any, row int) error {
 	}
 
 	switch val := reflect.ValueOf(dest); val.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if val.Elem().Kind() == reflect.Struct {
 			return c.scanIntoStruct(dest, row)
 		} else if val.Elem().Kind() == reflect.Map {
@@ -293,7 +293,7 @@ func (c *JSON) scanRowObject(dest any, row int) error {
 		}
 	}
 
-	return fmt.Errorf("destination must be a pointer to struct or map, or %s", scanTypeJSON.Name())
+	return fmt.Errorf("destination must be a pointer to struct or map, or %s", scanTypeJSON.String())
 }
 
 func (c *JSON) scanRowString(dest any, row int) error {
@@ -628,6 +628,10 @@ func (c *JSON) decodeObjectData(reader *proto.Reader, rows int) error {
 	}
 
 	// SharedData per row, ignored for now. May cause stream offset issues if present
+	_, err := reader.ReadRaw(8 * rows) // one UInt64 per row
+	if err != nil {
+		return fmt.Errorf("failed to read shared data for json column: %w", err)
+	}
 
 	return nil
 }
