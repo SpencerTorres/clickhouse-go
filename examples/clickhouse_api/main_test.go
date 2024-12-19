@@ -209,3 +209,15 @@ func TestSSL(t *testing.T) {
 func TestSSLNoVerify(t *testing.T) {
 	require.NoError(t, SSLNoVerifyVersion())
 }
+
+func TestJSONPathsExample(t *testing.T) {
+	require.NoError(t, JSONPathsExample())
+}
+
+func TestJSONStructExample(t *testing.T) {
+	require.NoError(t, JSONStructExample())
+}
+
+func TestJSONStringExample(t *testing.T) {
+	require.NoError(t, JSONStringExample())
+}
