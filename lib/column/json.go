@@ -301,8 +301,74 @@ func (c *JSON) scanRowString(dest any, row int) error {
 }
 
 func (c *JSON) Append(v any) (nulls []uint8, err error) {
-	//TODO implement me
-	panic("implement me")
+	switch c.serializationVersion {
+	case JSONObjectSerializationVersion:
+		return c.appendObject(v)
+	case JSONStringSerializationVersion:
+		return c.appendString(v)
+	default:
+		// Unset serialization preference, try string first
+		var err error
+		if _, err = c.appendString(v); err == nil {
+			c.serializationVersion = JSONStringSerializationVersion
+			return nil, nil
+		} else if _, err = c.appendObject(v); err == nil {
+			c.serializationVersion = JSONObjectSerializationVersion
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("unsupported type \"%s\" for JSON column, must use slice of string, []byte, struct, or map: %w", reflect.TypeOf(v).String(), err)
+	}
+}
+
+func (c *JSON) appendObject(v any) (nulls []uint8, err error) {
+	switch v.(type) {
+	case []chcol.JSON:
+		for i, vt := range v.([]chcol.JSON) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	case []*chcol.JSON:
+		for i, vt := range v.([]*chcol.JSON) {
+			err := c.AppendRow(vt)
+			if err != nil {
+				return nil, fmt.Errorf("failed to AppendRow at index %d: %w", i, err)
+			}
+		}
+
+		return nil, nil
+	}
+
+	value := reflect.Indirect(reflect.ValueOf(v))
+	if value.Kind() != reflect.Slice {
+		return nil, &ColumnConverterError{
+			Op:   "Append",
+			To:   string(c.chType),
+			From: fmt.Sprintf("%T", v),
+			Hint: "value must be a slice",
+		}
+	}
+	for i := 0; i < value.Len(); i++ {
+		if err := c.AppendRow(value.Index(i)); err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, nil
+}
+
+func (c *JSON) appendString(v any) (nulls []uint8, err error) {
+	nulls, err = c.jsonStrings.Append(v)
+	if err != nil {
+		return nil, err
+	}
+
+	c.rows = c.jsonStrings.Rows()
+	return nulls, nil
 }
 
 func (c *JSON) AppendRow(v any) error {
