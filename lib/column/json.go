@@ -317,7 +317,7 @@ func (c *JSON) Append(v any) (nulls []uint8, err error) {
 			return nil, nil
 		}
 
-		return nil, fmt.Errorf("unsupported type \"%s\" for JSON column, must use slice of string, []byte, struct, or map: %w", reflect.TypeOf(v).String(), err)
+		return nil, fmt.Errorf("unsupported type \"%s\" for JSON column, must use slice of string, []byte, struct, map, or *%s: %w", reflect.TypeOf(v).String(), scanTypeJSON.String(), err)
 	}
 }
 
@@ -388,7 +388,7 @@ func (c *JSON) AppendRow(v any) error {
 			return nil
 		}
 
-		return fmt.Errorf("unsupported type \"%s\" for JSON column, must use string, []byte, struct, or map: %w", reflect.TypeOf(v).String(), err)
+		return fmt.Errorf("unsupported type \"%s\" for JSON column, must use string, []byte, struct, map, or *%s: %w", reflect.TypeOf(v).String(), scanTypeJSON.String(), err)
 	}
 }
 
