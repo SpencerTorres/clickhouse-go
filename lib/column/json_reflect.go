@@ -19,9 +19,10 @@ package column
 
 import (
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"reflect"
 	"strings"
+
+	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 )
 
 // Decoding (Scanning)
@@ -336,10 +337,23 @@ func iterateStruct(val reflect.Value, prefix string, json *chcol.JSON) error {
 	return nil
 }
 
-var (
-	reflectTypeVariant         = reflect.TypeOf(chcol.Variant{})
-	reflectTypeVariantWithType = reflect.TypeOf(chcol.VariantWithType{})
-)
+// iterateStructSkipTypes is a set of struct types that will not be iterated.
+// Instead, the value will be assigned directly for use within Dynamic row appending.
+var iterateStructSkipTypes = map[reflect.Type]struct{}{
+	scanTypeIP:                              {},
+	scanTypeUUID:                            {},
+	scanTypeTime:                            {},
+	scanTypeTime:                            {},
+	scanTypeRing:                            {},
+	scanTypePoint:                           {},
+	scanTypeBigInt:                          {},
+	scanTypePolygon:                         {},
+	scanTypeDecimal:                         {},
+	scanTypeMultiPolygon:                    {},
+	scanTypeVariant:                         {},
+	scanTypeJSON:                            {},
+	reflect.TypeOf(chcol.VariantWithType{}): {},
+}
 
 // handleValue processes a single value and adds it to the JSON data
 func handleValue(val reflect.Value, path string, json *chcol.JSON, forcedType string) error {
@@ -361,7 +375,7 @@ func handleValue(val reflect.Value, path string, json *chcol.JSON, forcedType st
 		return handleValue(val.Elem(), path, json, forcedType)
 
 	case reflect.Struct:
-		if val.Type() == reflectTypeVariant || val.Type() == reflectTypeVariantWithType {
+		if _, ok := iterateStructSkipTypes[val.Type()]; ok {
 			json.SetValueAtPath(path, val.Interface())
 			return nil
 		}
