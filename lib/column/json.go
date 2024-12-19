@@ -60,124 +60,6 @@ type JSON struct {
 	totalDynamicPaths int
 }
 
-func (c *JSON) hasTypedPath(path string) bool {
-	_, ok := c.typedPathsIndex[path]
-	return ok
-}
-
-func (c *JSON) hasDynamicPath(path string) bool {
-	_, ok := c.dynamicPathsIndex[path]
-	return ok
-}
-
-func (c *JSON) hasSkipPath(path string) bool {
-	_, ok := c.skipPathsIndex[path]
-	return ok
-}
-
-// pathHasNestedValues returns true if the provided path has child paths in typed or dynamic paths
-func (c *JSON) pathHasNestedValues(path string) bool {
-	for _, typedPath := range c.typedPaths {
-		if strings.HasPrefix(typedPath, path+".") {
-			return true
-		}
-	}
-
-	for _, dynamicPath := range c.dynamicPaths {
-		if strings.HasPrefix(dynamicPath, path+".") {
-			return true
-		}
-	}
-
-	// TODO: SharedData paths
-
-	return false
-}
-
-// valueAtPath returns the row value at the specified path, typed or dynamic
-func (c *JSON) valueAtPath(path string, row int, ptr bool) any {
-	if colIndex, ok := c.typedPathsIndex[path]; ok {
-		return c.typedColumns[colIndex].Row(row, ptr)
-	}
-
-	if colIndex, ok := c.dynamicPathsIndex[path]; ok {
-		return c.dynamicColumns[colIndex].Row(row, ptr)
-	}
-
-	// TODO: SharedData paths
-
-	return nil
-}
-
-// scanTypedPathToValue scans the provided typed path into a `reflect.Value`
-func (c *JSON) scanTypedPathToValue(path string, row int, value reflect.Value) error {
-	colIndex, ok := c.typedPathsIndex[path]
-	if !ok {
-		return fmt.Errorf("typed path \"%s\" does not exist in JSON column", path)
-	}
-
-	col := c.typedColumns[colIndex]
-	err := col.ScanRow(value.Addr().Interface(), row)
-	if err != nil {
-		return fmt.Errorf("failed to scan %s column into typed path \"%s\": %w", col.Type(), path, err)
-	}
-
-	return nil
-}
-
-// scanDynamicPathToValue scans the provided typed path into a `reflect.Value`
-func (c *JSON) scanDynamicPathToValue(path string, row int, value reflect.Value) error {
-	colIndex, ok := c.dynamicPathsIndex[path]
-	if !ok {
-		return fmt.Errorf("dynamic path \"%s\" does not exist in JSON column", path)
-	}
-
-	col := c.dynamicColumns[colIndex]
-	err := col.ScanRow(value.Addr().Interface(), row)
-	if err != nil {
-		return fmt.Errorf("failed to scan %s column into dynamic path \"%s\": %w", col.Type(), path, err)
-	}
-
-	return nil
-}
-
-// splitWithDelimiters splits the string while considering backticks and parentheses
-func splitWithDelimiters(s string) []string {
-	var parts []string
-	var currentPart strings.Builder
-	var brackets int
-	inBackticks := false
-
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '`':
-			inBackticks = !inBackticks
-			currentPart.WriteByte(s[i])
-		case '(':
-			brackets++
-			currentPart.WriteByte(s[i])
-		case ')':
-			brackets--
-			currentPart.WriteByte(s[i])
-		case ',':
-			if !inBackticks && brackets == 0 {
-				parts = append(parts, currentPart.String())
-				currentPart.Reset()
-			} else {
-				currentPart.WriteByte(s[i])
-			}
-		default:
-			currentPart.WriteByte(s[i])
-		}
-	}
-
-	if currentPart.Len() > 0 {
-		parts = append(parts, currentPart.String())
-	}
-
-	return parts
-}
-
 func (c *JSON) parse(t Type, tz *time.Location) (_ *JSON, err error) {
 	c.chType = t
 	c.tz = tz
@@ -263,6 +145,99 @@ func (c *JSON) parse(t Type, tz *time.Location) (_ *JSON, err error) {
 	return c, nil
 }
 
+func (c *JSON) hasTypedPath(path string) bool {
+	_, ok := c.typedPathsIndex[path]
+	return ok
+}
+
+func (c *JSON) hasDynamicPath(path string) bool {
+	_, ok := c.dynamicPathsIndex[path]
+	return ok
+}
+
+func (c *JSON) hasSkipPath(path string) bool {
+	_, ok := c.skipPathsIndex[path]
+	return ok
+}
+
+// pathHasNestedValues returns true if the provided path has child paths in typed or dynamic paths
+func (c *JSON) pathHasNestedValues(path string) bool {
+	for _, typedPath := range c.typedPaths {
+		if strings.HasPrefix(typedPath, path+".") {
+			return true
+		}
+	}
+
+	for _, dynamicPath := range c.dynamicPaths {
+		if strings.HasPrefix(dynamicPath, path+".") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// valueAtPath returns the row value at the specified path, typed or dynamic
+func (c *JSON) valueAtPath(path string, row int, ptr bool) any {
+	if colIndex, ok := c.typedPathsIndex[path]; ok {
+		return c.typedColumns[colIndex].Row(row, ptr)
+	}
+
+	if colIndex, ok := c.dynamicPathsIndex[path]; ok {
+		return c.dynamicColumns[colIndex].Row(row, ptr)
+	}
+
+	return nil
+}
+
+// scanTypedPathToValue scans the provided typed path into a `reflect.Value`
+func (c *JSON) scanTypedPathToValue(path string, row int, value reflect.Value) error {
+	colIndex, ok := c.typedPathsIndex[path]
+	if !ok {
+		return fmt.Errorf("typed path \"%s\" does not exist in JSON column", path)
+	}
+
+	col := c.typedColumns[colIndex]
+	err := col.ScanRow(value.Addr().Interface(), row)
+	if err != nil {
+		return fmt.Errorf("failed to scan %s column into typed path \"%s\": %w", col.Type(), path, err)
+	}
+
+	return nil
+}
+
+// scanDynamicPathToValue scans the provided typed path into a `reflect.Value`
+func (c *JSON) scanDynamicPathToValue(path string, row int, value reflect.Value) error {
+	colIndex, ok := c.dynamicPathsIndex[path]
+	if !ok {
+		return fmt.Errorf("dynamic path \"%s\" does not exist in JSON column", path)
+	}
+
+	col := c.dynamicColumns[colIndex]
+	err := col.ScanRow(value.Addr().Interface(), row)
+	if err != nil {
+		return fmt.Errorf("failed to scan %s column into dynamic path \"%s\": %w", col.Type(), path, err)
+	}
+
+	return nil
+}
+
+func (c *JSON) rowAsJSON(row int) *chcol.JSON {
+	obj := chcol.NewJSON()
+
+	for i, path := range c.typedPaths {
+		col := c.typedColumns[i]
+		obj.SetValueAtPath(path, col.Row(row, false))
+	}
+
+	for i, path := range c.dynamicPaths {
+		col := c.dynamicColumns[i]
+		obj.SetValueAtPath(path, col.Row(row, false))
+	}
+
+	return obj
+}
+
 func (c *JSON) Name() string {
 	return c.name
 }
@@ -278,19 +253,7 @@ func (c *JSON) Rows() int {
 func (c *JSON) Row(row int, ptr bool) any {
 	switch c.serializationVersion {
 	case JSONObjectSerializationVersion:
-		obj := chcol.NewJSON()
-
-		for i, path := range c.typedPaths {
-			col := c.typedColumns[i]
-			obj.SetValueAtPath(path, col.Row(i, ptr))
-		}
-
-		for i, path := range c.dynamicPaths {
-			col := c.dynamicColumns[i]
-			obj.SetValueAtPath(path, col.Row(i, ptr))
-		}
-
-		return obj
+		return c.rowAsJSON(row)
 	case JSONStringSerializationVersion:
 		return c.jsonStrings.Row(row, ptr)
 	default:
@@ -310,6 +273,17 @@ func (c *JSON) ScanRow(dest any, row int) error {
 }
 
 func (c *JSON) scanRowObject(dest any, row int) error {
+	switch v := dest.(type) {
+	case *chcol.JSON:
+		obj := c.rowAsJSON(row)
+		*v = *obj
+		return nil
+	case **chcol.JSON:
+		obj := c.rowAsJSON(row)
+		**v = *obj
+		return nil
+	}
+
 	switch val := reflect.ValueOf(dest); val.Kind() {
 	case reflect.Ptr:
 		if val.Elem().Kind() == reflect.Struct {
@@ -317,47 +291,9 @@ func (c *JSON) scanRowObject(dest any, row int) error {
 		} else if val.Elem().Kind() == reflect.Map {
 			return c.scanIntoMap(dest, row)
 		}
-		return fmt.Errorf("destination must be a pointer to struct or map")
 	}
 
-	// TODO: OLD STUFF
-
-	obj := chcol.NewJSON()
-
-	for i, path := range c.typedPaths {
-		col := c.typedColumns[i]
-
-		var value any
-		err := col.ScanRow(&value, row)
-		if err != nil {
-			return fmt.Errorf("failed to scan json row %d for %s typed path %s", row, col.Type(), path)
-		}
-
-		obj.SetValueAtPath(path, value)
-	}
-
-	for i, path := range c.dynamicPaths {
-		col := c.dynamicColumns[i]
-
-		var value chcol.Dynamic
-		err := col.ScanRow(&value, row)
-		if err != nil {
-			return fmt.Errorf("failed to scan json row %d for dynamic path %s", row, path)
-		}
-
-		obj.SetValueAtPath(path, value)
-	}
-
-	switch v := dest.(type) {
-	case *chcol.JSON:
-		*v = *obj
-	case **chcol.JSON:
-		**v = *obj
-	default:
-		return fmt.Errorf("must scan into chcol.JSON type")
-	}
-
-	return nil
+	return fmt.Errorf("destination must be a pointer to struct or map, or %s", scanTypeJSON.Name())
 }
 
 func (c *JSON) scanRowString(dest any, row int) error {
@@ -392,23 +328,6 @@ func (c *JSON) AppendRow(v any) error {
 
 func (c *JSON) appendRowObject(v any) error {
 	var obj *chcol.JSON
-	var err error
-	switch val := reflect.ValueOf(v); val.Kind() {
-	case reflect.Pointer:
-		if val.Elem().Kind() == reflect.Struct {
-			obj, err = structToJSON(v)
-		} else if val.Elem().Kind() == reflect.Map {
-			obj, err = mapToJSON(v)
-		}
-	case reflect.Struct:
-		obj, err = structToJSON(v)
-	case reflect.Map:
-		obj, err = mapToJSON(v)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to convert value to JSON: %w", err)
-	}
-
 	switch v.(type) {
 	case chcol.JSON:
 		vv := v.(chcol.JSON)
@@ -417,17 +336,37 @@ func (c *JSON) appendRowObject(v any) error {
 		obj = v.(*chcol.JSON)
 	}
 
-	if obj == nil {
-		// TODO: temp
-		return fmt.Errorf("cannot append nil JSON")
+	if obj == nil && v != nil {
+		var err error
+		switch val := reflect.ValueOf(v); val.Kind() {
+		case reflect.Pointer:
+			if val.Elem().Kind() == reflect.Struct {
+				obj, err = structToJSON(v)
+			} else if val.Elem().Kind() == reflect.Map {
+				obj, err = mapToJSON(v)
+			}
+		case reflect.Struct:
+			obj, err = structToJSON(v)
+		case reflect.Map:
+			obj, err = mapToJSON(v)
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to convert value to JSON: %w", err)
+		}
 	}
+
+	if obj == nil {
+		obj = chcol.NewJSON()
+	}
+	valuesByPath := obj.ValuesByPath()
 
 	// Match typed paths first
 	for i, typedPath := range c.typedPaths {
 		// Even if value is nil, we must append a value for this row.
 		// nil is a valid value for most column types, with most implementations putting a zero value.
 		// If the column doesn't support appending nil, then the user must provide a zero value.
-		value, _ := obj.ValueAtPath(typedPath)
+		value, _ := valuesByPath[typedPath]
 
 		col := c.typedColumns[i]
 		err := col.AppendRow(value)
@@ -435,8 +374,6 @@ func (c *JSON) appendRowObject(v any) error {
 			return fmt.Errorf("failed to append type %s to json column at typed path %s: %w", col.Type(), typedPath, err)
 		}
 	}
-
-	valuesByPath := obj.ValuesByPath()
 
 	// Verify all dynamic paths have an equal number of rows by appending nil for all unspecified dynamic paths
 	for _, dynamicPath := range c.dynamicPaths {
@@ -503,8 +440,6 @@ func (c *JSON) encodeObjectHeader(buffer *proto.Buffer) {
 		buffer.PutString(dynamicPath)
 	}
 
-	// TODO: write typed path headers (low cardinality only?)
-
 	for _, col := range c.dynamicColumns {
 		col.encodeHeader(buffer)
 	}
@@ -519,7 +454,7 @@ func (c *JSON) encodeObjectData(buffer *proto.Buffer) {
 		col.encodeData(buffer)
 	}
 
-	// TODO: SharedData per row, empty for now.
+	// SharedData per row, empty for now.
 	for i := 0; i < c.rows; i++ {
 		buffer.PutUInt64(0)
 	}
@@ -591,10 +526,6 @@ func (c *JSON) decodeObjectHeader(reader *proto.Reader) error {
 		c.dynamicPathsIndex[dynamicPath] = len(c.dynamicPaths) - 1
 	}
 
-	// TODO: read typed path prefix (low cardinality only?)
-	//for range c.typedPaths {
-	//}
-
 	c.dynamicColumns = make([]*Dynamic, 0, totalDynamicPaths)
 	for _, dynamicPath := range c.dynamicPaths {
 		parsedColDynamic, _ := Type("Dynamic").Column("", c.tz)
@@ -607,8 +538,6 @@ func (c *JSON) decodeObjectHeader(reader *proto.Reader) error {
 
 		c.dynamicColumns = append(c.dynamicColumns, colDynamic)
 	}
-
-	// TODO: SharedData per row, ignored for now.
 
 	return nil
 }
@@ -631,6 +560,8 @@ func (c *JSON) decodeObjectData(reader *proto.Reader, rows int) error {
 			return fmt.Errorf("failed to decode dynamic path %s for json column: %w", dynamicPath, err)
 		}
 	}
+
+	// SharedData per row, ignored for now. May cause stream offset issues if present
 
 	return nil
 }
@@ -671,4 +602,41 @@ func (c *JSON) Decode(reader *proto.Reader, rows int) error {
 	default:
 		return fmt.Errorf("unsupported JSON serialization version for decode: %d", jsonSerializationVersion)
 	}
+}
+
+// splitWithDelimiters splits the string while considering backticks and parentheses
+func splitWithDelimiters(s string) []string {
+	var parts []string
+	var currentPart strings.Builder
+	var brackets int
+	inBackticks := false
+
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '`':
+			inBackticks = !inBackticks
+			currentPart.WriteByte(s[i])
+		case '(':
+			brackets++
+			currentPart.WriteByte(s[i])
+		case ')':
+			brackets--
+			currentPart.WriteByte(s[i])
+		case ',':
+			if !inBackticks && brackets == 0 {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+			} else {
+				currentPart.WriteByte(s[i])
+			}
+		default:
+			currentPart.WriteByte(s[i])
+		}
+	}
+
+	if currentPart.Len() > 0 {
+		parts = append(parts, currentPart.String())
+	}
+
+	return parts
 }
