@@ -210,6 +210,14 @@ func TestSSLNoVerify(t *testing.T) {
 	require.NoError(t, SSLNoVerifyVersion())
 }
 
+func TestVariantExample(t *testing.T) {
+	require.NoError(t, VariantExample())
+}
+
+func TestDynamicExample(t *testing.T) {
+	require.NoError(t, DynamicExample())
+}
+
 func TestJSONPathsExample(t *testing.T) {
 	require.NoError(t, JSONPathsExample())
 }

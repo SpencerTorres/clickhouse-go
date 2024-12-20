@@ -58,10 +58,11 @@ func TestVariant(t *testing.T) {
 			    	Int64,
 			    	String,
 			    	DateTime64(3),
+			    	Array(String),
 			    	Array(UInt8),
 			    	Array(Map(String, String)),
 			    	Map(String, String),
-			    	Map(String, Int64)
+			    	Map(String, Int64),
 			    )                  
 			) Engine = MergeTree() ORDER BY tuple()
 		`
@@ -81,6 +82,8 @@ func TestVariant(t *testing.T) {
 	require.NoError(t, batch.Append(clickhouse.NewVariantWithType(variantTestDate, "DateTime64(3)")))
 	var colNil any = nil
 	require.NoError(t, batch.Append(colNil))
+	colSliceString := []string{"a", "b"}
+	require.NoError(t, batch.Append(clickhouse.NewVariantWithType(colSliceString, "Array(String)")))
 	colSliceUInt8 := []uint8{0xA, 0xB, 0xC}
 	require.NoError(t, batch.Append(clickhouse.NewVariantWithType(colSliceUInt8, "Array(UInt8)")))
 	colSliceMapStringString := []map[string]string{{"key1": "value1", "key2": "value2"}, {"key3": "value3"}}
@@ -120,6 +123,11 @@ func TestVariant(t *testing.T) {
 	err = rows.Scan(&row)
 	require.NoError(t, err)
 	require.Equal(t, colNil, row.Any())
+
+	require.True(t, rows.Next())
+	err = rows.Scan(&row)
+	require.NoError(t, err)
+	require.Equal(t, colSliceString, row.Any())
 
 	require.True(t, rows.Next())
 	err = rows.Scan(&row)
