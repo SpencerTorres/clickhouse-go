@@ -180,7 +180,7 @@ func TestDynamic_ScanWithType(t *testing.T) {
 }
 
 func TestDynamic_BatchFlush(t *testing.T) {
-	t.Skip(fmt.Errorf("server-side SharedVariant bug"))
+	t.Skip(fmt.Errorf("server-side Dynamic bug"))
 
 	ctx := context.Background()
 	conn := setupDynamicTest(t)
@@ -216,7 +216,7 @@ func TestDynamic_BatchFlush(t *testing.T) {
 
 	i := 0
 	for rows.Next() {
-		var row chcol.DynamicWithType
+		var row clickhouse.DynamicWithType
 		err = rows.Scan(&row)
 		require.NoError(t, err)
 

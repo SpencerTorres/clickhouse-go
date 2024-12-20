@@ -56,7 +56,7 @@ func TestVariant_String(t *testing.T) {
 }
 
 func TestVariant_TypeSwitch(t *testing.T) {
-	in := struct{}{}
+	var in any
 
 	v := NewVariant(in)
 
@@ -66,7 +66,6 @@ func TestVariant_TypeSwitch(t *testing.T) {
 	case string:
 		t.Fatalf("unexpected string value from variant")
 	case nil:
-		break
 	default:
 		t.Fatalf("expected nil value from variant")
 	}
