@@ -245,15 +245,29 @@ func (c *Variant) AppendRow(v any) error {
 	case nil:
 		c.appendNullRow()
 		return nil
+	case chcol.Variant:
+		v = v.(chcol.Variant).Any()
+		if v == nil {
+			c.appendNullRow()
+			return nil
+		}
+	case *chcol.Variant:
+		v = v.(*chcol.Variant).Any()
+		if v == nil {
+			c.appendNullRow()
+			return nil
+		}
 	case chcol.VariantWithType:
 		requestedType = v.(chcol.VariantWithType).Type()
-		if v.(chcol.VariantWithType).Nil() {
+		v = v.(chcol.VariantWithType).Any()
+		if v == nil {
 			c.appendNullRow()
 			return nil
 		}
 	case *chcol.VariantWithType:
 		requestedType = v.(*chcol.VariantWithType).Type()
-		if v.(*chcol.VariantWithType).Nil() {
+		v = v.(*chcol.VariantWithType).Any()
+		if v == nil {
 			c.appendNullRow()
 			return nil
 		}

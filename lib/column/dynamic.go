@@ -223,15 +223,29 @@ func (c *Dynamic) AppendRow(v any) error {
 	case nil:
 		c.variant.appendNullRow()
 		return nil
+	case chcol.Dynamic:
+		v = v.(chcol.Dynamic).Any()
+		if v == nil {
+			c.variant.appendNullRow()
+			return nil
+		}
+	case *chcol.Dynamic:
+		v = v.(*chcol.Dynamic).Any()
+		if v == nil {
+			c.variant.appendNullRow()
+			return nil
+		}
 	case chcol.DynamicWithType:
 		requestedType = v.(chcol.DynamicWithType).Type()
-		if v.(chcol.DynamicWithType).Nil() {
+		v = v.(chcol.DynamicWithType).Any()
+		if v == nil {
 			c.variant.appendNullRow()
 			return nil
 		}
 	case *chcol.DynamicWithType:
 		requestedType = v.(*chcol.DynamicWithType).Type()
-		if v.(*chcol.DynamicWithType).Nil() {
+		v = v.(*chcol.DynamicWithType).Any()
+		if v == nil {
 			c.variant.appendNullRow()
 			return nil
 		}
@@ -280,7 +294,7 @@ func (c *Dynamic) AppendRow(v any) error {
 		return c.AppendRow(chcol.NewDynamicWithType(v, inferredTypeName))
 	}
 
-	return fmt.Errorf("value \"%v\" cannot be stored in dynamic column: no compatible types. hint: use %s to wrap the value", v, scanTypeDynamic.String())
+	return fmt.Errorf("value \"%v\" cannot be stored in dynamic column: no compatible types. hint: use clickhouse.DynamicWithType to wrap the value", v)
 }
 
 func (c *Dynamic) sortColumnsForEncoding() {
