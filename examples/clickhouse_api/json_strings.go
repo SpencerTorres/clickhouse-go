@@ -29,12 +29,13 @@ func JSONStringExample() error {
 	conn, err := GetNativeConnection(clickhouse.Settings{
 		"allow_experimental_json_type":              true,
 		"output_format_native_write_json_as_string": true,
+		"output_format_json_quote_64bit_integers":   false,
 	}, nil, nil)
 	if err != nil {
 		return err
 	}
 
-	if !CheckMinServerVersion(conn, 24, 9, 0) {
+	if !CheckMinServerVersion(conn, 24, 10, 0) {
 		fmt.Print("unsupported clickhouse version for JSON type")
 		return nil
 	}

@@ -32,7 +32,7 @@ func JSONPathsExample() error {
 		return err
 	}
 
-	if !CheckMinServerVersion(conn, 24, 9, 0) {
+	if !CheckMinServerVersion(conn, 24, 10, 0) {
 		fmt.Print("unsupported clickhouse version for JSON type")
 		return nil
 	}

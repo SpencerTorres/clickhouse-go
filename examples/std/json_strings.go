@@ -31,7 +31,7 @@ func JSONStringExample() error {
 		return err
 	}
 
-	if !CheckMinServerVersion(conn, 24, 9, 0) {
+	if !CheckMinServerVersion(conn, 24, 10, 0) {
 		fmt.Print("unsupported clickhouse version for JSON type")
 		return nil
 	}
@@ -42,6 +42,11 @@ func JSONStringExample() error {
 	}
 
 	_, err = conn.ExecContext(ctx, "SET output_format_native_write_json_as_string = 1")
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.ExecContext(ctx, "SET output_format_json_quote_64bit_integers = 0")
 	if err != nil {
 		return err
 	}

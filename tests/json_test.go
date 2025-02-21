@@ -31,10 +31,11 @@ func setupJSONTest(t *testing.T) driver.Conn {
 	SkipOnCloud(t, "cannot modify JSON settings on cloud")
 
 	conn, err := GetNativeConnection(clickhouse.Settings{
-		"max_execution_time":              60,
-		"allow_experimental_variant_type": true,
-		"allow_experimental_dynamic_type": true,
-		"allow_experimental_json_type":    true,
+		"max_execution_time":                      60,
+		"output_format_json_quote_64bit_integers": false,
+		"allow_experimental_variant_type":         true,
+		"allow_experimental_dynamic_type":         true,
+		"allow_experimental_json_type":            true,
 	}, nil, &clickhouse.Compression{
 		Method: clickhouse.CompressionLZ4,
 	})
@@ -292,8 +293,6 @@ func TestJSONFastStruct(t *testing.T) {
 }
 
 func TestJSONString(t *testing.T) {
-	t.Skip("client cannot receive JSON strings")
-
 	ctx := context.Background()
 	conn := setupJSONTest(t)
 
